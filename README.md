@@ -1,595 +1,293 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
-  <img src="https://img.shields.io/badge/Freqtrade-Powered-orange?style=for-the-badge" alt="Freqtrade">
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
-</p>
+# 🏛️ STOIC CITADEL - HFT Algorithmic Trading Bot
 
-<p align="center">
-  <img src="https://github.com/kandibobe/hft-algotrade-bot/workflows/Stoic%20Citadel%20CI%2FCD/badge.svg" alt="CI/CD">
-  <img src="https://img.shields.io/github/last-commit/kandibobe/hft-algotrade-bot?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/github/issues/kandibobe/hft-algotrade-bot?style=flat-square" alt="Issues">
-  <img src="https://img.shields.io/github/stars/kandibobe/hft-algotrade-bot?style=flat-square" alt="Stars">
-</p>
+**Professional trading infrastructure powered by Freqtrade**
 
-<h1 align="center">🏛️ Stoic Citadel</h1>
-
-<p align="center">
-  <strong>Professional HFT-lite Algorithmic Trading Infrastructure</strong>
-  <br>
-  <em>"In research, we seek truth. In trading, we execute truth."</em>
-</p>
-
-<p align="center">
-  <a href="#-quick-start">Quick Start</a> •
-  <a href="#-features">Features</a> •
-  <a href="#-architecture">Architecture</a> •
-  <a href="docs/QUICKSTART_RU.md">Документация RU</a> •
-  <a href="CONTRIBUTING.md">Contributing</a>
-</p>
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Freqtrade 2024.11](https://img.shields.io/badge/freqtrade-2024.11-green.svg)](https://www.freqtrade.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 
 ---
 
 ## 📋 Table of Contents
 
-- [Overview](#-overview)
-- [Architecture](#️-architecture)
 - [Features](#-features)
-- [Prerequisites](#-prerequisites)
-- [Quick Start](#-quick-start)
-- [Usage](#-usage)
+- [Quick Start](#-quick-start-windows)
+- [Strategies](#-available-strategies)
+- [Backtesting](#-backtesting)
 - [Project Structure](#-project-structure)
-- [Configuration](#️-configuration)
-- [Strategy Development Workflow](#-strategy-development-workflow)
-- [Testing & Quality Assurance](#-testing--quality-assurance)
-- [Monitoring & Observability](#-monitoring--observability)
-- [Risk Management](#️-risk-management)
-- [Deployment](#-deployment)
-- [Troubleshooting](#-troubleshooting)
-- [License](#-license)
-
----
-
-## 🎯 Overview
-
-Stoic Citadel is a professional-grade algorithmic trading ecosystem designed for serious traders who understand that **profitability comes from research, not guesswork**.
-
-Unlike typical trading bots that execute random strategies, Stoic Citadel separates:
-- **Research Lab** (Jupyter + VectorBT) - Where you discover edge
-- **Execution Engine** (Freqtrade) - Where you deploy proven strategies
-
-### Philosophy
-
-1. **Research First** - Find strategies in the lab, not in production
-2. **Risk Management** - Capital preservation > profit maximization
-3. **Automation** - Let the machine execute, let the human research
-4. **Discipline** - No revenge trading, no emotional decisions
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    STOIC CITADEL                            │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌────────────────────┐     ┌─────────────────────┐        │
-│  │  RESEARCH LAB      │     │  EXECUTION ENGINE   │        │
-│  │  ─────────────     │     │  ────────────────   │        │
-│  │  • Jupyter Lab     │ ──► │  • Freqtrade        │        │
-│  │  • VectorBT        │     │  • FreqUI           │        │
-│  │  • ML Models       │     │  • WebSocket API    │        │
-│  │  • Backtesting     │     │  • Order Execution  │        │
-│  └────────────────────┘     └─────────────────────┘        │
-│           │                           │                     │
-│           └───────────┬───────────────┘                     │
-│                       │                                     │
-│  ┌────────────────────▼──────────────────────┐             │
-│  │          INFRASTRUCTURE                   │             │
-│  │          ──────────────                   │             │
-│  │  • PostgreSQL (Analytics DB)              │             │
-│  │  • Telegram Bot (Alerts)                  │             │
-│  │  • Prometheus + Grafana (Monitoring)      │             │
-│  │  • Portainer (Container Management)       │             │
-│  └───────────────────────────────────────────┘             │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Components
-
-| Component | Purpose | Port |
-|-----------|---------|------|
-| **Freqtrade** | Trading bot execution engine | 8080 |
-| **FreqUI** | Web dashboard for monitoring | 3000 |
-| **Jupyter Lab** | Research environment | 8888 |
-| **PostgreSQL** | Trade analytics database | 5432 |
-| **Prometheus** | Metrics collection | 9090 |
-| **Grafana** | Dashboards & visualization | 3001 |
-| **Portainer** | Docker management UI | 9000 |
+- [Documentation](#-documentation)
 
 ---
 
 ## ✨ Features
 
-### Research Lab
-- 🔬 **VectorBT Integration** - Backtest years of data in seconds
-- 📊 **Comprehensive Indicators** - 50+ technical indicators pre-configured
-- 🤖 **ML Pipeline** - XGBoost, LightGBM, CatBoost ready to use
-- 📈 **Advanced Visualization** - Plotly-based interactive charts
-- 🧪 **Parameter Optimization** - Grid search with heatmaps
+### Trading Infrastructure
+- 🤖 **Freqtrade 2024.11** - Professional algorithmic trading engine
+- 📊 **FreqUI Dashboard** - Real-time monitoring and control
+- 🐳 **Docker-based** - One-command deployment
+- 💾 **PostgreSQL** - Advanced analytics database
+- 🔍 **Portainer** - Container management
 
-### Execution Engine
-- ⚡ **Low Latency** - Optimized for sub-second execution
-- 🔒 **Risk Management** - Hard stops, cooldowns, max drawdown protection
-- 📱 **Telegram Alerts** - Real-time notifications
-- 🌐 **Multi-Exchange** - Binance, Bybit, and more
-- 💾 **Database Logging** - Full trade history in PostgreSQL
+### Strategies Included
+1. **SimpleTestStrategy** - Basic RSI strategy for testing
+2. **StoicStrategyV1** - Market regime-aware trend following
+3. **StoicEnsembleStrategy** - Multi-strategy ensemble
 
-### Infrastructure
-- 🐳 **Fully Dockerized** - Portable across any system
-- 🔐 **Security First** - API keys encrypted, no plaintext secrets
-- 📦 **One-Command Deploy** - Setup in minutes, not hours
-- 🛡️ **Production Ready** - Designed for 24/7 operation
-- 📊 **Full Observability** - Prometheus + Grafana monitoring
-
-### Developer Experience
-- ✅ **CI/CD Pipeline** - Automated testing on every push
-- 🧪 **Comprehensive Tests** - Unit, integration, and strategy validation
-- 🎨 **Code Quality** - Black, Flake8, MyPy pre-configured
-- 📝 **Pre-commit Hooks** - Catch issues before commit
+### Research & Development
+- 🔬 **Jupyter Lab** - Interactive strategy development
+- 📈 **Backtesting** - Walk-forward validation
+- 🎯 **HyperOpt** - Parameter optimization
+- 📊 **Rich Analytics** - pandas, numpy, scikit-learn
 
 ---
 
-## 📦 Prerequisites
+## 🚀 Quick Start (Windows)
 
-- **Docker** (>= 20.10)
-- **Docker Compose** (>= 2.0)
-- **Git**
-- **8GB RAM** (minimum)
-- **20GB Disk Space** (for data storage)
+### Prerequisites
+- ✅ Docker Desktop installed and running
+- ✅ Git for Windows
+- ✅ PowerShell 5.0+
 
-### Optional (for VPS deployment)
-- **Hetzner Cloud Account** (or any VPS provider)
-- **Domain name** (for HTTPS access)
+### Installation
 
----
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
-
-```bash
+```powershell
+# Clone repository
 git clone https://github.com/kandibobe/hft-algotrade-bot.git
 cd hft-algotrade-bot
+
+# Start bot (dry-run mode, no real money)
+docker-compose up -d freqtrade frequi
+
+# Check status
+docker-compose ps
 ```
 
-### 2. Initial Setup (Recommended - Interactive Wizard)
+**Dashboard:** http://localhost:3000  
+**Login:** `stoic_admin` | **Password:** `StoicGuard2024`
 
-```bash
-# Run interactive setup wizard
-make setup
-# OR
-python3 scripts/setup_wizard.py
+### Using Helper Script
+
+```powershell
+# Start bot
+.\citadel.ps1 start
+
+# Download data
+.\citadel.ps1 download
+
+# Run backtest
+.\citadel.ps1 backtest
+
+# Show all commands
+.\citadel.ps1 help
 ```
-
-**Alternative - Manual Setup:**
-
-```bash
-# Make control script executable
-chmod +x scripts/citadel.sh scripts/download_data.sh
-chmod +x scripts/verify_data.py
-
-# Run first-time setup
-./scripts/citadel.sh setup
-```
-
-### 3. Configure Environment
-
-```bash
-# Copy environment template
-cp .env.example .env
-
-# Edit with your API keys (optional for dry-run)
-nano .env
-```
-
-### 4. Download Historical Data
-
-```bash
-# Download 90 days of 5-minute candles
-make download
-# OR
-./scripts/citadel.sh download
-```
-
-### 5. Start Research Environment
-
-```bash
-# Launch Jupyter Lab
-make research
-```
-
-Open your browser: `http://localhost:8888` (token: `stoic2024`)
-
-### 6. Start Trading (Dry-Run)
-
-```bash
-# Start bot with fake money
-make trade-dry
-```
-
-Access dashboard: `http://localhost:3000`
 
 ---
 
-## 💻 Usage
+## 🎯 Available Strategies
 
-### Makefile Commands (Recommended)
+### SimpleTestStrategy
+**Best for:** Testing infrastructure, learning basics
 
-Stoic Citadel includes a comprehensive Makefile for streamlined development:
-
-```bash
-make help  # Show all available commands
+```yaml
+Logic: Buy when RSI < 30, Sell when RSI > 70
+ROI: 5% / 3% / 1%
+Stoploss: -5%
+Timeframe: 5m
 ```
 
-**Common Commands:**
+### StoicStrategyV1
+**Best for:** Production trading, bull markets
 
-| Command | Description |
-|---------|-------------|
-| `make setup` | Run interactive setup wizard |
-| `make start` | Start all services |
-| `make stop` | Stop all services |
-| `make test` | Run full test suite |
-| `make lint` | Check code quality |
-| `make format` | Auto-format code |
-| `make trade-dry` | Start paper trading |
-| `make backtest STRATEGY=MyStrategy` | Run backtest |
-| `make research` | Start Jupyter Lab |
-| `make monitoring` | Start monitoring stack |
-| `make logs SERVICE=freqtrade` | View logs |
-| `make clean` | Remove containers |
-
-### Master Control Script (Alternative)
-
-All operations can also be managed through `citadel.sh`:
-
-```bash
-./scripts/citadel.sh [command]
+```yaml
+Logic: Market regime filter + RSI oversold + trend confirmation
+ROI: 6% / 4% / 2% / 1%
+Stoploss: -5%
+Timeframe: 5m
+Special: Requires BTC/USDT 1d data for regime detection
 ```
 
-#### Available Commands
+### StoicEnsembleStrategy
+**Best for:** Advanced users, risk diversification
 
-| Command | Description |
-|---------|-------------|
-| `setup` | First-time setup (builds containers) |
-| `start` | Start all services |
-| `stop` | Stop all services |
-| `restart` | Restart all services |
-| `logs [service]` | View logs (default: freqtrade) |
-| `status` | Show service status |
-| `research` | Launch Jupyter Lab |
-| `trade` | Start trading bot (dry-run) |
-| `trade-live` | Start LIVE trading ⚠️ |
-| `backtest [strategy]` | Run backtest |
-| `download` | Download historical data |
-| `verify` | Verify data quality |
-| `clean` | Remove containers and volumes |
+```yaml
+Logic: Combines multiple sub-strategies with voting
+ROI: Dynamic based on sub-strategies
+Stoploss: -5%
+Timeframe: 5m
+```
+
+---
+
+## 🧪 Backtesting
+
+### Quick Test
+
+```powershell
+docker-compose run --rm freqtrade backtesting `
+  --config /freqtrade/user_data/config/config.json `
+  --strategy SimpleTestStrategy `
+  --timerange 20241001-20241202
+```
+
+### Download Historical Data
+
+```powershell
+# 90 days, 5-minute candles
+docker-compose run --rm freqtrade download-data `
+  --config /freqtrade/user_data/config/config.json `
+  --exchange binance `
+  --pairs BTC/USDT ETH/USDT BNB/USDT SOL/USDT XRP/USDT `
+  --timeframe 5m `
+  --days 90
+```
+
+### Advanced Backtesting
+
+```powershell
+# With daily breakdown
+docker-compose run --rm freqtrade backtesting `
+  --config /freqtrade/user_data/config/config.json `
+  --strategy StoicStrategyV1 `
+  --timerange 20240601- `
+  --breakdown day
+
+# View results
+docker-compose run --rm freqtrade backtesting-show
+```
 
 ---
 
 ## 📁 Project Structure
 
 ```
-stoic-citadel/
-├── .github/
-│   ├── workflows/
-│   │   └── ci.yml                      # CI/CD pipeline
-│   ├── ISSUE_TEMPLATE/                 # Issue templates
-│   ├── PULL_REQUEST_TEMPLATE.md        # PR template
-│   └── dependabot.yml                  # Auto-updates
-│
-├── docker/
-│   ├── Dockerfile.jupyter              # Research environment
-│   ├── Dockerfile.test                 # Test container
-│   └── requirements-research.txt       # Python dependencies
-│
+hft-algotrade-bot/
 ├── user_data/
+│   ├── strategies/           # Trading strategies
+│   │   ├── SimpleTestStrategy.py
+│   │   ├── StoicStrategyV1.py
+│   │   └── StoicEnsembleStrategy.py
+│   ├── data/binance/         # Market data
+│   ├── logs/                 # Bot logs
 │   ├── config/
-│   │   ├── config_production.json      # Production config
-│   │   └── config_dryrun.json          # Testing config
-│   ├── strategies/
-│   │   ├── StoicEnsembleStrategy.py    # Main strategy
-│   │   └── StoicStrategyV1.py          # Alternative strategy
-│   ├── data/                           # Historical data
-│   └── logs/                           # Bot logs
-│
-├── tests/                              # Test suite
-│   ├── conftest.py                     # Test fixtures
-│   ├── test_strategies/                # Strategy tests
-│   └── test_integration/               # Integration tests
-│
-├── monitoring/                         # Monitoring stack
-│   ├── prometheus/                     # Metrics collection
-│   ├── grafana/                        # Dashboards
-│   └── alertmanager/                   # Alert management
-│
-├── scripts/
-│   ├── citadel.sh                      # Master control script
-│   ├── setup_wizard.py                 # Interactive setup
-│   ├── health_check.py                 # System health check
-│   ├── download_data.sh                # Data downloader
-│   ├── verify_data.py                  # Data quality checker
-│   └── walk_forward.py                 # Walk-forward validation
-│
-├── docs/                               # Documentation
-│   ├── QUICKSTART_RU.md                # Quick start (Russian)
-│   ├── API_SETUP_RU.md                 # API setup guide
-│   └── TELEGRAM_SETUP_RU.md            # Telegram setup
-│
-├── Makefile                            # Build automation
-├── pyproject.toml                      # Project config
-├── .pre-commit-config.yaml             # Pre-commit hooks
-├── docker-compose.yml                  # Main infrastructure
-├── docker-compose.test.yml             # Test environment
-├── docker-compose.monitoring.yml       # Monitoring stack
-├── CONTRIBUTING.md                     # Contribution guide
-├── SECURITY.md                         # Security policy
-├── CODE_OF_CONDUCT.md                  # Code of conduct
-├── LICENSE                             # MIT License
-└── README.md                           # This file
+│   │   └── config.json       # Main configuration
+│   └── tradesv3.sqlite       # Trade database
+├── research/                 # Jupyter notebooks
+├── scripts/                  # Helper scripts
+├── docker/                   # Docker configurations
+├── docker-compose.yml        # Main orchestration file
+├── citadel.ps1              # Windows helper script
+├── START_WINDOWS.md         # Detailed Windows guide
+└── README.md                # This file
 ```
 
 ---
 
-## ⚙️ Configuration
+## 📚 Documentation
 
-### Exchange Configuration
+- **[START_WINDOWS.md](START_WINDOWS.md)** - Complete Windows setup guide
+- **[QUICKSTART.md](QUICKSTART.md)** - 3-minute quick start
+- **[Freqtrade Docs](https://www.freqtrade.io/en/stable/)** - Official documentation
 
-Edit `user_data/config/config_production.json`:
+---
+
+## 🔧 Configuration
+
+### Main Config: `user_data/config/config.json`
 
 ```json
 {
+  "dry_run": true,              // ⚠️ Set false for real trading
+  "dry_run_wallet": 10000,      // Virtual wallet in dry-run
+  "stake_amount": "unlimited",  // Position sizing
+  "max_open_trades": 3,         // Maximum concurrent trades
   "exchange": {
     "name": "binance",
-    "key": "YOUR_API_KEY",
-    "secret": "YOUR_API_SECRET",
-    "ccxt_config": {
-      "enableRateLimit": true
-    }
+    "key": "",                   // Your API key
+    "secret": ""                 // Your API secret
   }
 }
 ```
 
-### Telegram Alerts
+---
 
-1. Create a Telegram bot via [@BotFather](https://t.me/botfather)
-2. Get your chat ID via [@userinfobot](https://t.me/userinfobot)
-3. Update `.env`:
+## 🛠️ Common Commands
 
-```env
-TELEGRAM_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-TELEGRAM_CHAT_ID=123456789
-```
+```powershell
+# Start bot
+docker-compose up -d freqtrade frequi
 
-### Risk Management Settings
+# Stop bot
+docker-compose down
 
-Critical settings in `config_production.json`:
+# View logs
+docker-compose logs -f freqtrade
 
-```json
-{
-  "max_open_trades": 3,
-  "stake_amount": "unlimited",
-  "tradable_balance_ratio": 0.99,
+# List strategies
+docker-compose run --rm freqtrade list-strategies `
+  --config /freqtrade/user_data/config/config.json
 
-  "stoploss": -0.05,
-  "trailing_stop": true,
-  "trailing_stop_positive": 0.01,
-
-  "protections": [
-    {
-      "method": "StoplossGuard",
-      "trade_limit": 3,
-      "stop_duration_candles": 24
-    },
-    {
-      "method": "MaxDrawdown",
-      "max_allowed_drawdown": 0.15
-    }
-  ]
-}
+# Check status
+docker-compose ps
 ```
 
 ---
 
-## 🔬 Strategy Development Workflow
+## ⚠️ Risk Disclaimer
 
-### The Stoic Method
+**IMPORTANT:** This software is for educational purposes. Algorithmic trading carries substantial risk of financial loss. The authors are not responsible for any losses incurred.
 
-1. **Research Phase** (Jupyter Lab)
-   - Load historical data
-   - Calculate indicators
-   - Generate signals
-   - Backtest with VectorBT
-   - Optimize parameters
-   - Validate with walk-forward testing
-
-2. **Implementation Phase** (Freqtrade)
-   - Convert logic to Freqtrade strategy
-   - Backtest with Freqtrade
-   - Paper trade (dry-run)
-   - Monitor for 1-2 weeks
-
-3. **Deployment Phase** (Production)
-   - Small capital allocation
-   - Monitor closely
-   - Scale up gradually
+- ✅ Always test strategies in dry-run mode first
+- ✅ Start with small amounts
+- ✅ Understand the risks
+- ✅ Never invest more than you can afford to lose
 
 ---
 
-## 🧪 Testing & Quality Assurance
+## 📈 Performance Monitoring
 
-### Running Tests
+### Real-time Dashboard
+- **URL:** http://localhost:3000
+- **Features:** Live trades, performance metrics, profit/loss tracking
 
-```bash
-# Run all tests
-make test
+### Logs
+```powershell
+# Real-time logs
+docker-compose logs -f freqtrade
 
-# Run unit tests only
-make test-unit
+# Save to file
+docker-compose logs freqtrade > logs.txt
 
-# Run integration tests
-make test-integration
-
-# Run with coverage report
-make test-coverage
-```
-
-### Code Quality
-
-```bash
-# Check code quality
-make lint
-
-# Auto-format code
-make format
-```
-
-### Continuous Integration
-
-Every push and PR automatically runs:
-- ✅ Code formatting checks (Black)
-- ✅ Linting (Flake8)
-- ✅ Type checking (MyPy)
-- ✅ Security scanning (Bandit)
-- ✅ Unit tests
-- ✅ Integration tests
-- ✅ Docker build validation
-- ✅ Strategy validation
-- ✅ Configuration validation
-
----
-
-## 📊 Monitoring & Observability
-
-### Starting the Monitoring Stack
-
-```bash
-# Start Prometheus + Grafana
-make monitoring
-
-# Stop monitoring
-make monitoring-stop
-```
-
-### Access Dashboards
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **Grafana** | http://localhost:3001 | admin/admin |
-| **Prometheus** | http://localhost:9090 | - |
-| **Alertmanager** | http://localhost:9093 | - |
-
-### Health Check
-
-```bash
-python3 scripts/health_check.py
-```
-
----
-
-## 🛡️ Risk Management
-
-### Built-in Protections
-
-| Protection | Purpose | Configuration |
-|------------|---------|---------------|
-| **Hard Stoploss** | Limit losses per trade | `stoploss: -0.05` |
-| **Trailing Stop** | Lock in profits | `trailing_stop: true` |
-| **Stoploss Guard** | Prevent revenge trading | Stop after 3 losses |
-| **Max Drawdown** | Circuit breaker | Stop at 15% drawdown |
-| **Cooldown Period** | Forced break | 2-4 hours after losses |
-
-### Emergency Stop
-
-```bash
-# Stop all trading immediately
-make stop
-# OR
-./scripts/citadel.sh stop
-```
-
----
-
-## 🚀 Deployment
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed production deployment guide.
-
----
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-#### Container Won't Start
-
-```bash
-# Check logs
-make logs SERVICE=freqtrade
-
-# Rebuild container
-docker-compose build --no-cache
-```
-
-#### No Data Available
-
-```bash
-# Re-download data
-make download
-
-# Check data quality
-python3 scripts/verify_data.py
+# View log file
+notepad user_data/logs/freqtrade.log
 ```
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
-
-## 🔒 Security
-
-For security concerns, please read [SECURITY.md](SECURITY.md).
-
----
-
-## ⚠️ Disclaimer
-
-**IMPORTANT LEGAL NOTICE:**
-
-- This software is for **educational purposes only**
-- Trading cryptocurrencies carries **significant risk**
-- **Past performance does not guarantee future results**
-- You can **lose all your capital**
-- The authors are **not responsible for your trading losses**
-- **Always test extensively** in dry-run mode first
-- **Never invest more than you can afford to lose**
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
-<p align="center">
-  <strong>Built with discipline. Traded with wisdom. Executed with precision.</strong>
-  <br><br>
-  <em>"The wise trader knows that the best trade is often no trade at all."</em>
-  <br><br>
-  🏛️ <strong>Stoic Citadel</strong> - Where reason rules, not emotion.
-</p>
+## 🔗 Links
+
+- **GitHub:** https://github.com/kandibobe/hft-algotrade-bot
+- **Freqtrade:** https://www.freqtrade.io/
+- **Documentation:** See `START_WINDOWS.md` for detailed guide
+
+---
+
+**🏛️ Stoic Citadel** - Where reason rules, not emotion.
+
+*Built with ❤️ by algorithmic traders, for algorithmic traders*

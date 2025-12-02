@@ -6,24 +6,32 @@ LABEL description="Quantitative Research Environment for HFT Strategy Developmen
 
 USER root
 
-# Install system dependencies including TA-Lib
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     curl \
     wget \
     vim \
-    libta-lib0 \
-    libta-lib-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Build and install TA-Lib from source
+RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+    tar -xzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && \
+    ./configure --prefix=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
+
 USER ${NB_UID}
 
-# Install core quant libraries
+# Install core quant libraries with correct versions
 RUN pip install --no-cache-dir \
     freqtrade==2024.11 \
-    pandas-ta==0.3.14b \
+    pandas-ta==0.3.14 \
     TA-Lib==0.4.28 \
     technical==1.4.2 \
     ccxt==4.4.23 \
