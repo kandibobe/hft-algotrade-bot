@@ -61,27 +61,6 @@
     "120": 0.01
   },
   
-  "protections": [
-    {
-      "method": "StoplossGuard",
-      "lookback_period_candles": 60,
-      "trade_limit": 3,
-      "stop_duration_candles": 24,
-      "required_profit": 0.0
-    },
-    {
-      "method": "MaxDrawdown",
-      "lookback_period_candles": 200,
-      "trade_limit": 20,
-      "stop_duration_candles": 40,
-      "max_allowed_drawdown": 0.15
-    },
-    {
-      "method": "CooldownPeriod",
-      "stop_duration_candles": 12
-    }
-  ],
-  
   "telegram": {
     "enabled": false,
     "token": "",
