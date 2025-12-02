@@ -12,12 +12,12 @@ services:
       - ./user_data:/freqtrade/user_data
       - ./user_data/strategies:/freqtrade/strategies
     ports:
-      - "127.0.0.1:8080:8080"  # Bind to localhost only for security
+      - "127.0.0.1:8080:8080"
     command: >
       trade
       --logfile /freqtrade/user_data/logs/freqtrade.log
       --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
-      --config /freqtrade/user_data/config/config_production.json
+      --config /freqtrade/user_data/config/config.json
       --strategy StoicStrategyV1
     networks:
       - stoic_network
@@ -26,7 +26,7 @@ services:
       - FREQTRADE__API_SERVER__LISTEN_IP_ADDRESS=0.0.0.0
       - FREQTRADE__API_SERVER__LISTEN_PORT=8080
       - FREQTRADE__API_SERVER__USERNAME=stoic_admin
-      - FREQTRADE__API_SERVER__PASSWORD=StoicGuard2024!ChangeMe
+      - FREQTRADE__API_SERVER__PASSWORD=StoicGuard2024
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/ping"]
       interval: 30s
@@ -42,7 +42,7 @@ services:
     container_name: stoic_frequi
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:8080"  # Bind to localhost only for security
+      - "127.0.0.1:3000:8080"
     environment:
       - VITE_API_URL=http://freqtrade:8080
     depends_on:
@@ -68,11 +68,11 @@ services:
     restart: unless-stopped
     volumes:
       - ./research:/home/jovyan/research
-      - ./user_data:/home/jovyan/user_data:ro  # Read-only access to data
+      - ./user_data:/home/jovyan/user_data:ro
       - ./scripts:/home/jovyan/scripts
-      - ./user_data/strategies:/home/jovyan/strategies  # Read-write for strategy development
+      - ./user_data/strategies:/home/jovyan/strategies
     ports:
-      - "127.0.0.1:8888:8888"  # Bind to localhost only for security
+      - "127.0.0.1:8888:8888"
     environment:
       - JUPYTER_ENABLE_LAB=yes
       - GRANT_SUDO=yes
@@ -96,10 +96,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "127.0.0.1:5432:5432"  # Bind to localhost only for security
+      - "127.0.0.1:5432:5432"
     environment:
       - POSTGRES_USER=stoic_trader
-      - POSTGRES_PASSWORD=StoicDB2024!ChangeMe
+      - POSTGRES_PASSWORD=StoicDB2024
       - POSTGRES_DB=trading_analytics
     networks:
       - stoic_network
@@ -121,8 +121,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     ports:
-      - "127.0.0.1:9443:9443"  # Bind to localhost only for security
-      - "127.0.0.1:9000:9000"  # Bind to localhost only for security
+      - "127.0.0.1:9443:9443"
+      - "127.0.0.1:9000:9000"
     networks:
       - stoic_network
     healthcheck:
