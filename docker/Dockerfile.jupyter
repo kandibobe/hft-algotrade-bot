@@ -28,10 +28,10 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
 
 USER ${NB_UID}
 
-# Install core quant libraries
+# Install core quant libraries with correct versions
 RUN pip install --no-cache-dir \
     freqtrade==2024.11 \
-    pandas-ta==0.3.14b \
+    pandas-ta==0.3.14 \
     TA-Lib==0.4.28 \
     technical==1.4.2 \
     ccxt==4.4.23 \
