@@ -62,7 +62,7 @@ services:
   jupyter:
     build:
       context: .
-      dockerfile: docker/Dockerfile.jupyter
+      dockerfile: Dockerfile.jupyter
     container_name: stoic_jupyter
     restart: unless-stopped
     volumes:
@@ -95,7 +95,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/setup_postgres.sql:/docker-entrypoint-initdb.d/setup.sql
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"  # Changed from 5432 to 5433 to avoid Windows conflict
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-stoic_trader}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ChangeMe456!}
