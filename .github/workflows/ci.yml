@@ -68,7 +68,7 @@ jobs:
             -m "not integration and not slow"
       
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: always()
         with:
           files: ./coverage.xml
