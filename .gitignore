@@ -42,11 +42,11 @@ user_data/config/*_live.json
 user_data/config/*_production.json
 
 # ML Models (proprietary)
-user_data/models/*.pkl
-user_data/models/*.h5
-user_data/models/*.pt
-user_data/models/*.pth
-user_data/models/*.onnx
+user_data/models/**/*.pkl
+user_data/models/**/*.h5
+user_data/models/**/*.pt
+user_data/models/**/*.pth
+user_data/models/**/*.onnx
 !user_data/models/.gitkeep
 
 # Trading strategies (proprietary)
@@ -115,6 +115,10 @@ user_data/backtest_results/
 user_data/hyperopt_results/
 !user_data/hyperopt_results/.gitkeep
 
+# Walk-forward optimization results
+user_data/walk_forward_results/
+!user_data/walk_forward_results/.gitkeep
+
 # Logs
 user_data/logs/
 !user_data/logs/.gitkeep
@@ -123,6 +127,7 @@ user_data/logs/
 # Database
 *.sqlite
 *.sqlite3
+*.sqlite-*
 *.db
 
 # Notebooks (personal)
