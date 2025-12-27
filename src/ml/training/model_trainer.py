@@ -112,14 +112,15 @@ class ModelTrainer:
 
         # Split data if validation not provided
         if X_val is None or y_val is None:
+            # CRITICAL FIX: Enforce time-series split (shuffle=False) to prevent data leakage
             X, X_val, y, y_val = train_test_split(
                 X,
                 y,
                 test_size=self.config.test_size,
-                random_state=self.config.random_state,
-                stratify=y if len(y.unique()) > 1 else None,
+                shuffle=False,  # DO NOT SHUFFLE TIME SERIES DATA
+                stratify=None,  # Stratify not supported with shuffle=False
             )
-            logger.info(f"Split into train: {len(X)}, val: {len(X_val)}")
+            logger.info(f"Split into train: {len(X)}, val: {len(X_val)} (Time-series split)")
 
         # Feature selection
         if self.config.feature_selection:

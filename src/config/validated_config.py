@@ -27,8 +27,15 @@ Usage:
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 try:
     from pydantic import BaseModel, Field, field_validator, model_validator
@@ -52,8 +59,14 @@ class ExchangeConfig(BaseModel):
     sandbox: bool = Field(
         default=True, description="Use testnet/sandbox mode (CRITICAL for testing!)"
     )
-    api_key: Optional[str] = Field(default=None, description="API key (keep secret!)")
-    api_secret: Optional[str] = Field(default=None, description="API secret (keep secret!)")
+    api_key: Optional[str] = Field(
+        default_factory=lambda: os.getenv("BINANCE_API_KEY"),
+        description="API key (keep secret!)"
+    )
+    api_secret: Optional[str] = Field(
+        default_factory=lambda: os.getenv("BINANCE_API_SECRET"),
+        description="API secret (keep secret!)"
+    )
     rate_limit: bool = Field(default=True, description="Enable rate limiting to avoid bans")
     timeout_ms: int = Field(
         default=30000, ge=1000, le=120000, description="Request timeout in milliseconds"

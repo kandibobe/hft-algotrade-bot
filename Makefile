@@ -107,27 +107,27 @@ check-env: ## Check if .env file exists
 
 lint: ## Run all linters (ruff, black, isort, mypy)
 	@echo "$(CYAN)Running code quality checks...$(NC)"
-	@$(VENV)/Scripts/activate && ruff check src/ tests/ scripts/ || (echo "$(RED)❌ Ruff linting issues found$(NC)" && exit 1)
-	@$(VENV)/Scripts/activate && black --check --line-length 100 src/ tests/ scripts/ || (echo "$(RED)❌ Black formatting issues found$(NC)" && exit 1)
-	@$(VENV)/Scripts/activate && isort --check-only src/ tests/ scripts/ || (echo "$(RED)❌ Import sorting issues found$(NC)" && exit 1)
+	@$(VENV)/Scripts/activate && ruff check src/ tests/ tools/ || (echo "$(RED)❌ Ruff linting issues found$(NC)" && exit 1)
+	@$(VENV)/Scripts/activate && black --check --line-length 100 src/ tests/ tools/ || (echo "$(RED)❌ Black formatting issues found$(NC)" && exit 1)
+	@$(VENV)/Scripts/activate && isort --check-only src/ tests/ tools/ || (echo "$(RED)❌ Import sorting issues found$(NC)" && exit 1)
 	@$(VENV)/Scripts/activate && mypy src/ --ignore-missing-imports || (echo "$(RED)❌ Type checking issues found$(NC)" && exit 1)
 	@echo "$(GREEN)✅ All code quality checks passed!$(NC)"
 
 format: ## Auto-format code with ruff, black and isort
 	@echo "$(CYAN)Formatting code...$(NC)"
-	@$(VENV)/Scripts/activate && ruff check --fix src/ tests/ scripts/
-	@$(VENV)/Scripts/activate && black --line-length 100 src/ tests/ scripts/
-	@$(VENV)/Scripts/activate && isort src/ tests/ scripts/
+	@$(VENV)/Scripts/activate && ruff check --fix src/ tests/ tools/
+	@$(VENV)/Scripts/activate && black --line-length 100 src/ tests/ tools/
+	@$(VENV)/Scripts/activate && isort src/ tests/ tools/
 	@echo "$(GREEN)✅ Code formatted!$(NC)"
 
 ruff: ## Run Ruff linter only
 	@echo "$(CYAN)Running Ruff linter...$(NC)"
-	@$(VENV)/Scripts/activate && ruff check src/ tests/ scripts/
+	@$(VENV)/Scripts/activate && ruff check src/ tests/ tools/
 	@echo "$(GREEN)✅ Ruff checks passed!$(NC)"
 
 ruff-fix: ## Auto-fix Ruff issues
 	@echo "$(CYAN)Fixing Ruff issues...$(NC)"
-	@$(VENV)/Scripts/activate && ruff check --fix src/ tests/ scripts/
+	@$(VENV)/Scripts/activate && ruff check --fix src/ tests/ tools/
 	@echo "$(GREEN)✅ Ruff fixes applied!$(NC)"
 
 type-check: ## Run type checking with mypy
@@ -202,22 +202,22 @@ coverage: ## Run tests with coverage report
 
 train: ## Train ML model with proper data split
 	@echo "$(CYAN)Training ML model...$(NC)"
-	@$(VENV)/Scripts/activate && python scripts/train_models.py
+	@$(VENV)/Scripts/activate && python manage.py train
 	@echo "$(GREEN)✅ Model training completed!$(NC)"
 
 optimize: ## Run hyperparameter optimization
 	@echo "$(CYAN)Running hyperparameter optimization...$(NC)"
-	@$(VENV)/Scripts/activate && python scripts/optimize_strategy.py --n-trials 100
+	@$(VENV)/Scripts/activate && python tools/ops/optimize_strategy.py --n-trials 100
 	@echo "$(GREEN)✅ Hyperparameter optimization completed!$(NC)"
 
 walk-forward: ## Run walk-forward validation
 	@echo "$(CYAN)Running walk-forward validation...$(NC)"
-	@$(VENV)/Scripts/activate && python scripts/walk_forward_analysis.py
+	@$(VENV)/Scripts/activate && python tools/walk_forward_analysis.py
 	@echo "$(GREEN)✅ Walk-forward validation completed!$(NC)"
 
 preflight: ## Run preflight checks
 	@echo "$(CYAN)Running preflight checks...$(NC)"
-	@$(VENV)/Scripts/activate && python scripts/preflight_check.py
+	@$(VENV)/Scripts/activate && python tools/diagnostics/preflight_check.py
 	@echo "$(GREEN)✅ Preflight checks passed!$(NC)"
 
 # ==============================================================================
@@ -229,7 +229,7 @@ preflight: ## Run preflight checks
 backtest: ## Run backtest with default strategy
 	@echo "$(CYAN)Running backtest for strategy: $(STRATEGY)$(NC)"
 	@$(VENV)/Scripts/activate && freqtrade backtesting \
-		--config user_data/config/config_backtest.json \
+		--config config/config_backtest.json \
 		--strategy $(STRATEGY) \
 		--timerange $(TIMERANGE) \
 		--enable-protections
@@ -237,7 +237,7 @@ backtest: ## Run backtest with default strategy
 
 backtest-batch: ## Run batch backtesting
 	@echo "$(CYAN)Running batch backtesting...$(NC)"
-	@$(VENV)/Scripts/activate && python scripts/batch_backtest.py
+	@$(VENV)/Scripts/activate && python tools/backtesting/batch_backtest.py
 	@echo "$(GREEN)✅ Batch backtesting completed!$(NC)"
 
 trade-dry: ## Start trading in dry-run mode (paper trading)
@@ -334,7 +334,7 @@ monitor-stop: ## Stop monitoring stack
 
 health-check: ## Run health checks
 	@echo "$(CYAN)Running health checks...$(NC)"
-	@$(VENV)/Scripts/activate && python scripts/health_check.py
+	@$(VENV)/Scripts/activate && python tools/diagnostics/health_check.py
 	@echo "$(GREEN)✅ Health checks completed!$(NC)"
 
 # ==============================================================================

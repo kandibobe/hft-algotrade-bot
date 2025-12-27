@@ -27,7 +27,11 @@ from typing import Optional
 
 import yaml
 from pydantic import ConfigDict, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+except ImportError:
+    from pydantic import BaseSettings
+    SettingsConfigDict = None
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +64,19 @@ class TradingConfig(BaseSettings):
             raise ValueError("Position size > 30% is too risky!")
         return v
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-        case_sensitive=True,
-    )
+    if SettingsConfigDict:
+        model_config = SettingsConfigDict(
+            env_file=".env",
+            env_file_encoding="utf-8",
+            extra="ignore",
+            case_sensitive=True,
+        )
+    else:
+        class Config:
+            env_file = ".env"
+            env_file_encoding = "utf-8"
+            extra = "ignore"
+            case_sensitive = True
 
 
 # Global config instance

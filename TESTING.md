@@ -8,7 +8,7 @@ cd C:\mft-algotrade-bot
 .venv\Scripts\Activate.ps1
 
 # 2. Install dependencies / Установить зависимости
-pip install -r requirements.txt
+pip install -e ".[dev]"
 
 # 3. Run all tests / Запустить все тесты
 pytest tests/ -v
@@ -283,7 +283,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
+      - run: pip install ".[dev]"
       - run: pytest tests/ -v --cov=src
 ```
 

@@ -41,9 +41,10 @@ try:
     from feast.types import Float32, Int64, String
 
     FEAST_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     FEAST_AVAILABLE = False
-    logging.warning("Feast not available. Install with: pip install feast")
+    # Log as info/debug to avoid spamming if not used
+    logging.info(f"Feast not available (Optional): {e}")
 
     # Create dummy classes for type hints
     class FeatureStore:

@@ -14,6 +14,7 @@ from typing import Dict, Literal, Optional
 
 import numpy as np
 import pandas as pd
+from .math_tools import calculate_hurst
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class MarketRegime(Enum):
     RANGING = "ranging"
     HIGH_VOLATILITY = "high_volatility"
     LOW_VOLATILITY = "low_volatility"
+    RANDOM_WALK = "random_walk"
 
 
 def detect_trend_regime(
@@ -38,28 +40,6 @@ def detect_trend_regime(
 ) -> pd.Series:
     """
     Detect market trend regime using EMA crossover and ADX strength.
-    
-    Identifies if the market is in a specific trend (Bullish/Bearish) or Ranging.
-    
-    Financial Logic:
-    - **Bull Trend**: Short EMA > Long EMA AND Trend Strength (ADX) > Threshold.
-    - **Bear Trend**: Short EMA < Long EMA AND Trend Strength (ADX) > Threshold.
-    - **Ranging**: Trend Strength (ADX) < Threshold (choppy market).
-    
-    Strategies often perform best when aligned with the regime:
-    - Trend Following: Buy dips in Bull, Short rallies in Bear.
-    - Mean Reversion: Buy low/Sell high in Ranging.
-
-    Args:
-        close: Close price series.
-        ema_short: Short-term EMA period (default 50).
-        ema_long: Long-term EMA period (default 200).
-        adx_threshold: Minimum ADX value to consider a market "trending" (default 25.0).
-        high: High price series (required for accurate ADX).
-        low: Low price series (required for accurate ADX).
-
-    Returns:
-        pd.Series: Series containing regime labels (e.g., 'trending_bull', 'ranging').
     """
     from .indicators import calculate_adx, calculate_ema
 
@@ -99,24 +79,6 @@ def detect_volatility_regime(
 ) -> pd.Series:
     """
     Detect volatility regime based on historical realized volatility distribution.
-    
-    Classifies market conditions into High, Low, or Normal volatility based on 
-    how current volatility compares to its recent history (percentile rank).
-
-    Financial Logic:
-    - **High Volatility**: Prices moving rapidly. Risk is high. Stops should be wider.
-      Position sizes often reduced. Breakout strategies work well.
-    - **Low Volatility**: Prices consolidated. Risk is lower. Stops can be tighter.
-      Position sizes often increased. Mean reversion strategies work well.
-
-    Args:
-        close: Close price series.
-        lookback: Rolling window for volatility calculation (default 30).
-        high_vol_percentile: Percentile rank (0-100) above which is "High Volatility" (default 75).
-        low_vol_percentile: Percentile rank (0-100) below which is "Low Volatility" (default 25).
-
-    Returns:
-        pd.Series: Series with volatility labels.
     """
     # Calculate rolling realized volatility
     returns = close.pct_change()
@@ -145,9 +107,9 @@ def calculate_regime_score(
     high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series
 ) -> pd.DataFrame:
     """
-    Calculate comprehensive regime scores.
+    Calculate comprehensive regime scores (V5 Enhanced).
 
-    Returns DataFrame with multiple regime indicators.
+    Returns DataFrame with multiple regime indicators including Hurst and Volatility Rank.
 
     Args:
         high: High price series
@@ -162,55 +124,50 @@ def calculate_regime_score(
 
     result = pd.DataFrame(index=close.index)
 
-    # Trend score (0-100, >50 = bullish)
+    # 1. Volatility Rank (Normalized ATR)
+    # We use a long window (500) to get a statistically significant rank
+    atr = calculate_atr(high, low, close, 14)
+    atr_pct = atr / close
+    
+    # Percentile Rank of ATR% over last 500 candles
+    result["volatility_rank"] = (
+        atr_pct
+        .rolling(window=500, min_periods=100)
+        .rank(pct=True)
+    )
+    
+    # 2. Hurst Exponent (Trend Persistence)
+    # Window 100 is standard for daily/hourly
+    result["hurst"] = calculate_hurst(close, window=100)
+    
+    # 3. Liquidity (Relative Volume)
+    vol_sma = volume.rolling(20).mean()
+    result["rel_volume"] = volume / vol_sma.replace(0, 1)
+
+    # 4. Backward Compatibility Scores (Legacy V4 support)
     ema_50 = close.ewm(span=50).mean()
     ema_200 = close.ewm(span=200).mean()
-
     result["ema_trend"] = (ema_50 > ema_200).astype(int)
-    result["price_vs_ema"] = (close > ema_50).astype(int)
-
-    # ADX for trend strength
+    
     adx_data = calculate_adx(high, low, close)
     result["adx"] = adx_data["adx"]
-    result["trend_strength"] = result["adx"].clip(0, 100) / 100
-
-    # Volatility score
-    atr = calculate_atr(high, low, close)
-    result["atr_pct"] = atr / close * 100
-
-    # Rolling volatility percentile
-    vol_lookback = 100
-    result["volatility_rank"] = (
-        result["atr_pct"]
-        .rolling(vol_lookback)
-        .apply(lambda x: pd.Series(x).rank(pct=True).iloc[-1], raw=False)
-    )
-
-    # RSI for overbought/oversold
     result["rsi"] = calculate_rsi(close)
-
-    # Volume analysis
-    result["volume_ratio"] = volume / volume.rolling(20).mean()
-
-    # Composite regime score
-    # Bullish: 0-100 scale
-    # >60 = strongly bullish, 40-60 = neutral, <40 = bearish
+    
+    # Composite Score (Legacy)
     result["regime_score"] = (
         result["ema_trend"] * 30
-        + result["price_vs_ema"] * 20
+        + ((close > ema_50).astype(int)) * 20
         + (result["rsi"] > 50).astype(int) * 20
         + (result["adx"] > 25).astype(int) * 15
-        + (result["volume_ratio"] > 1).astype(int) * 15
+        + (result["rel_volume"] > 1).astype(int) * 15
     )
 
-    # Risk adjustment factor (1.0 = normal, <1 = reduce risk)
-    result["risk_factor"] = np.where(
-        result["volatility_rank"] > 0.8,
-        0.5,  # High volatility: reduce risk
-        np.where(
-            result["volatility_rank"] < 0.2, 1.2, 1.0  # Low volatility: can increase risk  # Normal
-        ),
-    )
+    # 5. Risk Factor (Advanced V5)
+    # Scale risk based on Volatility Rank (Inverse Volatility Sizing)
+    # If Vol Rank is 0.9 (High Risk), factor -> 0.6
+    # If Vol Rank is 0.1 (Low Risk), factor -> 1.4
+    # Formula: 1.5 - VolRank (clipped to 0.5-1.5)
+    result["risk_factor"] = (1.5 - result["volatility_rank"]).clip(0.5, 1.5)
 
     return result
 
@@ -219,49 +176,23 @@ def get_regime_parameters(
     regime_score: float, base_risk: float = 0.02, base_leverage: float = 1.0
 ) -> Dict[str, float]:
     """
-    Get recommended trading parameters based on regime.
-
-    Args:
-        regime_score: Composite regime score (0-100)
-        base_risk: Base risk per trade
-        base_leverage: Base leverage
-
-    Returns:
-        Dict with adjusted parameters
+    Get recommended trading parameters based on regime (Legacy V4 wrapper).
     """
     if regime_score > 70:
-        # Strongly bullish: aggressive
         return {
             "risk_per_trade": base_risk * 1.2,
             "leverage": min(base_leverage * 1.5, 3.0),
-            "min_rsi_entry": 25,  # Buy deeper dips
-            "max_positions": 5,
             "mode": "aggressive",
         }
-    elif regime_score > 55:
-        # Moderately bullish: normal
+    elif regime_score > 40:
         return {
             "risk_per_trade": base_risk,
             "leverage": base_leverage,
-            "min_rsi_entry": 30,
-            "max_positions": 4,
             "mode": "normal",
         }
-    elif regime_score > 40:
-        # Neutral: cautious
-        return {
-            "risk_per_trade": base_risk * 0.75,
-            "leverage": base_leverage * 0.8,
-            "min_rsi_entry": 25,
-            "max_positions": 3,
-            "mode": "cautious",
-        }
     else:
-        # Bearish: defensive
         return {
             "risk_per_trade": base_risk * 0.5,
             "leverage": base_leverage * 0.5,
-            "min_rsi_entry": 20,
-            "max_positions": 2,
             "mode": "defensive",
         }

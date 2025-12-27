@@ -98,11 +98,10 @@ make install
 cp .env.example .env
 # Edit .env with your exchange API keys
 
-# 4. Download historical data
-python scripts/download_data.py --days 30
-
-# 5. Run a backtest
-make backtest
+# 4. Use Unified CLI
+python manage.py train --pairs BTC/USDT ETH/USDT --quick
+python manage.py backtest
+python manage.py optimize
 ```
 
 ### Docker Quick Start
@@ -119,24 +118,24 @@ docker-compose -f docker-compose.monitoring.yml up
 
 ```
 mft-algotrade-bot/
-├── src/                    # Source code (Python src-layout)
+├── src/                    # Core System Code (Python src-layout)
 │   ├── config/            # Configuration management
 │   ├── data/              # Data loading and preprocessing
 │   ├── ml/                # Machine learning pipeline
 │   ├── order_manager/     # Smart execution and order management
 │   ├── risk/              # Risk management systems
 │   ├── signals/           # Signal generation
-│   ├── strategies/        # Trading strategies
 │   ├── utils/             # Utilities and helpers
 │   └── websocket/         # Real-time data streaming
-├── tests/                 # Comprehensive test suite
-├── scripts/               # Utility scripts
-├── config/                # Configuration files
-├── user_data/             # User data (gitignored)
-├── monitoring/            # Prometheus/Grafana configs
-├── docker/                # Docker configurations
-├── docs/                  # Documentation
-└── examples/              # Usage examples
+├── strategies/             # Trading Strategies (User Logic)
+├── config/                 # Configuration files & Templates
+├── tools/                  # Utilities (Ops, Backtesting, Diagnostics)
+├── deploy/                 # Docker & Deployment configurations
+├── docs/                   # Documentation
+├── tests/                  # Comprehensive test suite
+├── examples/               # Usage examples
+├── monitoring/             # Prometheus/Grafana configs
+└── manage.py               # Unified Entry Point
 ```
 
 ## 🔧 Development

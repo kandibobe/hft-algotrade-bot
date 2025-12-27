@@ -188,6 +188,77 @@ class FeatureEngineer:
         self._fractional_differentiator = None
         self._stationarity_applied = False
 
+    def prepare_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Prepare data: Stationarity -> Engineer -> Clean.
+        Does NOT remove correlated features or scale.
+        Safe to call on full dataset if you split afterwards.
+        """
+        logger.info(f"Preparing features from {len(df)} rows")
+        
+        # Apply stationarity transformation if configured
+        result = self._apply_stationarity_transformation(df.copy())
+
+        # Engineer features
+        result = self._engineer_features(result)
+
+        # AGGRESSIVE CLEANING: Replace inf with NaN and drop all NaN rows
+        result = self._apply_aggressive_cleaning(result)
+
+        return result
+
+    def fit_scaler_and_selector(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Fit scaler and feature selector on TRAINING data.
+        
+        1. Identifies and removes correlated features (from Train)
+        2. Fits scaler (on Train)
+        3. Returns transformed Train data
+        """
+        result = df.copy()
+        
+        # Remove highly correlated features (learn which to remove from train)
+        if self.config.remove_correlated:
+            result = self._remove_correlated_features(result)
+
+        # Fit scaler on training data and transform
+        if self.config.scale_features:
+            result = self._fit_scale_features(result)
+
+        # Store feature names (after correlation removal)
+        self.feature_names = [
+            col for col in result.columns if col not in ["open", "high", "low", "close", "volume"]
+        ]
+
+        self._is_fitted = True
+        logger.info(f"Fitted scaler and selector. Kept {len(self.feature_names)} features.")
+
+        return result
+
+    def transform_scaler_and_selector(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply scaler and selector to TEST data.
+        
+        1. Selects same features as Train
+        2. Applies pre-fitted scaler
+        """
+        if not self._is_fitted:
+            raise ValueError("Selector/Scaler not fitted! Call fit_scaler_and_selector() first.")
+            
+        result = df.copy()
+        
+        # Filter columns to match training set
+        cols_to_keep = ["open", "high", "low", "close", "volume"] + [
+            col for col in self.feature_names if col in result.columns
+        ]
+        result = result[[c for c in cols_to_keep if c in result.columns]]
+        
+        # Apply pre-fitted scaler (NO fitting on test data!)
+        if self.config.scale_features:
+            result = self._apply_scale_features(result)
+            
+        return result
+
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Fit scaler on data and transform. Use this for TRAINING data only.
@@ -634,9 +705,18 @@ class FeatureEngineer:
         # VWAP should only use past data, not future data
         vwap_window = self.config.short_period
         typical_price = (df["high"] + df["low"] + df["close"]) / 3
-        df["vwap"] = (typical_price * df["volume"]).rolling(vwap_window).sum() / df[
+        
+        # Calculate VWAP
+        vwap_raw = (typical_price * df["volume"]).rolling(vwap_window).sum() / df[
             "volume"
         ].rolling(vwap_window).sum()
+        
+        # CRITICAL FIX: Shift VWAP by 1 to avoid lookahead bias.
+        # If we are at Open[i], we cannot know Volume[i] or Close[i].
+        # We must use VWAP calculated up to Close[i-1].
+        df["vwap"] = vwap_raw.shift(1)
+        
+        # Recalculate diff using shifted VWAP
         df["vwap_diff"] = (df["close"] - df["vwap"]) / (df["vwap"] + 1e-10)
 
         return df
@@ -773,13 +853,21 @@ class FeatureEngineer:
             ema_strength = 0
         
         # Combined primary signal (binary)
-        df['primary_signal'] = ((rsi_signal + macd_signal + ema_cross_signal) >= 2).astype(int)
+        combined_signal = (rsi_signal + macd_signal + ema_cross_signal) >= 2
+        # Handle case where combined_signal is a scalar boolean (if all inputs are 0)
+        if isinstance(combined_signal, (bool, np.bool_)):
+            df['primary_signal'] = int(combined_signal)
+        else:
+            df['primary_signal'] = combined_signal.astype(int)
         
         # Primary signal strength (0-1 scale)
         df['primary_signal_strength'] = (rsi_strength + macd_strength + ema_strength) / 3
         
         # 2. Volatility features (already have volatility, but add more)
         if 'volatility' not in df.columns:
+            # Ensure returns exist
+            if 'returns' not in df.columns:
+                df['returns'] = df['close'].pct_change(fill_method=None)
             df['volatility'] = df['returns'].rolling(self.config.medium_period).std()
         
         # Volatility regime (high/medium/low)
@@ -799,14 +887,15 @@ class FeatureEngineer:
         # Use volume-price relationship as proxy
         if 'volume' in df.columns and 'close' in df.columns:
             # Volume-weighted price change
-            price_change = df['close'].pct_change()
-            volume_change = df['volume'].pct_change()
+            price_change = df['close'].pct_change(fill_method=None)
+            volume_change = df['volume'].pct_change(fill_method=None)
             df['order_imbalance'] = price_change * volume_change
             
-            # Normalized order imbalance
-            df['order_imbalance_norm'] = df['order_imbalance'].rolling(20).apply(
-                lambda x: (x.iloc[-1] - x.mean()) / (x.std() + 1e-10)
-            )
+            # Normalized order imbalance - optimized to avoid lambda
+            # Calculate rolling mean and std first
+            rolling_mean = df['order_imbalance'].rolling(20).mean()
+            rolling_std = df['order_imbalance'].rolling(20).std()
+            df['order_imbalance_norm'] = (df['order_imbalance'] - rolling_mean) / (rolling_std + 1e-10)
         
         # 5. Market regime features
         # Trend vs mean reversion regime
@@ -1112,3 +1201,29 @@ class FeatureEngineer:
     def is_fitted(self) -> bool:
         """Check if scaler has been fitted."""
         return self._is_fitted
+
+    @classmethod
+    def generate_indicators_for_freqtrade(cls, dataframe: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate indicators using FeatureEngineer for Freqtrade strategy.
+        Ensures consistent feature engineering between training and live trading.
+        
+        Args:
+            dataframe: Input OHLCV dataframe
+            
+        Returns:
+            Dataframe with added indicators (unscaled)
+        """
+        # Create default config suitable for indicators
+        config = FeatureConfig(
+            include_price_features=True,
+            include_volume_features=True,
+            include_momentum_features=True,
+            include_volatility_features=True,
+            include_trend_features=True,
+            include_time_features=False, # Time features often cause issues in live if not careful
+            scale_features=False, # Indicators should be raw
+            remove_correlated=False # Keep all
+        )
+        engineer = cls(config)
+        return engineer.prepare_data(dataframe)

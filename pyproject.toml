@@ -108,6 +108,10 @@ dev = [
     "pre-commit>=3.0.0",
     "safety>=2.0.0",
     "bandit>=1.7.0",
+    "pytest-postgresql>=5.0.0",
+    "pip-audit>=2.7.0",
+    "semgrep>=1.60.0",
+    "detect-secrets>=1.4.0",
 ]
 
 freqtrade = [

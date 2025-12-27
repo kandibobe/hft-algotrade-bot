@@ -34,9 +34,9 @@ try:
     from river import drift, linear_model, metrics, optimizers, losses
 
     RIVER_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     RIVER_AVAILABLE = False
-    logging.warning("River library not available. Install with: pip install river")
+    logging.info(f"River library not available (Optional): {e}")
 
     # Define dummy classes for type hints
     class linear_model:

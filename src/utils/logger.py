@@ -33,6 +33,7 @@ Usage:
 """
 
 import logging
+import logging.handlers
 import sys
 from typing import Any, Dict, Optional
 
@@ -75,7 +76,12 @@ def setup_structured_logging(
         handlers.append(console_handler)
 
     if enable_file and file_path:
-        file_handler = logging.FileHandler(file_path)
+        file_handler = logging.handlers.RotatingFileHandler(
+            file_path,
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5,
+            encoding='utf-8'
+        )
         handlers.append(file_handler)
 
     # Apply handlers to root logger

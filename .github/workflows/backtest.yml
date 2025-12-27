@@ -62,8 +62,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install freqtrade
+          pip install ".[freqtrade]"
 
       - name: Create user_data structure
         run: |

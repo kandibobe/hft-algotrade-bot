@@ -12,8 +12,10 @@ Emergency stop mechanism for trading bot:
 
 import logging
 import threading
-from dataclasses import dataclass, field
+import json
+from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
+from pathlib import Path
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -76,6 +78,9 @@ class CircuitBreakerConfig:
     enable_adaptive_thresholds: bool = True
     baseline_volatility: Optional[float] = None  # Will be learned from data
     max_volatility_multiplier: float = 2.0  # Max adaptive increase
+    
+    # Persistence
+    state_file_path: Path = Path("user_data/circuit_breaker_state.json")
 
 
 @dataclass
@@ -120,17 +125,27 @@ class CircuitBreaker:
         self.recovery_trades: int = 0
         self._lock = threading.RLock()
         self._callbacks: List[callable] = []
+        
+        # Load state if exists
+        self.load_state()
 
     def initialize_session(self, initial_balance: float) -> None:
         """Initialize or reset trading session."""
         with self._lock:
-            self.session = TradingSession(
-                start_time=datetime.utcnow(),
-                initial_balance=initial_balance,
-                current_balance=initial_balance,
-                peak_balance=initial_balance,
-            )
-            logger.info(f"Session initialized with balance: ${initial_balance:,.2f}")
+            # If we loaded a session and it's from today (approx), keep the PnL tracking
+            # Otherwise start fresh
+            if self.session.start_time.date() != datetime.utcnow().date():
+                self.session = TradingSession(
+                    start_time=datetime.utcnow(),
+                    initial_balance=initial_balance,
+                    current_balance=initial_balance,
+                    peak_balance=initial_balance,
+                )
+                logger.info(f"New session initialized with balance: ${initial_balance:,.2f}")
+            else:
+                logger.info(f"Resumed session with balance: ${self.session.current_balance:,.2f}")
+            
+            self.save_state()
 
     def update_balance(self, new_balance: float) -> None:
         """Update current balance and track peak."""
@@ -138,6 +153,7 @@ class CircuitBreaker:
             self.session.current_balance = new_balance
             if new_balance > self.session.peak_balance:
                 self.session.peak_balance = new_balance
+            self.save_state()
 
     def record_trade(self, trade: Dict, profit_pct: float) -> None:
         """
@@ -373,6 +389,8 @@ class CircuitBreaker:
         self.trip_reason = reason
         self.trip_time = datetime.utcnow()
         self.recovery_trades = 0
+        
+        self.save_state()
 
         logger.error(
             f"🚨 CIRCUIT BREAKER TRIPPED: {reason.value}\n"
@@ -403,6 +421,8 @@ class CircuitBreaker:
         self.trip_time = None
         self.recovery_trades = 0
         self.session.consecutive_losses = 0
+        
+        self.save_state()
 
         logger.info("Circuit breaker reset to CLOSED state")
 
@@ -420,6 +440,61 @@ class CircuitBreaker:
                 callback(self.get_status())
             except Exception as e:
                 logger.error(f"Callback error: {e}")
+    
+    def save_state(self) -> None:
+        """Save circuit breaker state to disk."""
+        try:
+            state_data = {
+                "state": self.state.value,
+                "trip_reason": self.trip_reason.value if self.trip_reason else None,
+                "trip_time": self.trip_time.isoformat() if self.trip_time else None,
+                "recovery_trades": self.recovery_trades,
+                "session": {
+                    "start_time": self.session.start_time.isoformat(),
+                    "initial_balance": self.session.initial_balance,
+                    "current_balance": self.session.current_balance,
+                    "peak_balance": self.session.peak_balance,
+                    "consecutive_losses": self.session.consecutive_losses
+                }
+            }
+            
+            # Ensure directory exists
+            self.config.state_file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(self.config.state_file_path, 'w') as f:
+                json.dump(state_data, f, indent=2)
+                
+        except Exception as e:
+            logger.error(f"Failed to save circuit breaker state: {e}")
+
+    def load_state(self) -> None:
+        """Load circuit breaker state from disk."""
+        if not self.config.state_file_path.exists():
+            return
+            
+        try:
+            with open(self.config.state_file_path, 'r') as f:
+                data = json.load(f)
+                
+            self.state = CircuitState(data["state"])
+            if data["trip_reason"]:
+                self.trip_reason = TripReason(data["trip_reason"])
+            if data["trip_time"]:
+                self.trip_time = datetime.fromisoformat(data["trip_time"])
+            self.recovery_trades = data.get("recovery_trades", 0)
+            
+            session_data = data.get("session", {})
+            if session_data:
+                self.session.start_time = datetime.fromisoformat(session_data["start_time"])
+                self.session.initial_balance = session_data["initial_balance"]
+                self.session.current_balance = session_data["current_balance"]
+                self.session.peak_balance = session_data["peak_balance"]
+                self.session.consecutive_losses = session_data["consecutive_losses"]
+                
+            logger.info("Circuit breaker state loaded from disk")
+            
+        except Exception as e:
+            logger.error(f"Failed to load circuit breaker state: {e}")
 
     def _should_auto_reset(self) -> bool:
         """

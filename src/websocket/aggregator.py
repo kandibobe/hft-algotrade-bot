@@ -96,7 +96,7 @@ class DataAggregator:
         @aggregator.on_aggregated_ticker
         async def handle_ticker(ticker: AggregatedTicker):
             if ticker.arbitrage_opportunity:
-                print(f"Arbitrage! {ticker.arbitrage_profit_pct:.2f}% profit")
+                logger.info(f"Arbitrage! {ticker.arbitrage_profit_pct:.2f}% profit")
 
         # Start
         await aggregator.start()

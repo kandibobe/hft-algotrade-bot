@@ -100,9 +100,11 @@ class TripleBarrierLabeler:
         close = df["close"].values
         high = df["high"].values
         low = df["low"].values
+        opens = df["open"].values
 
         for i in range(len(df) - self.config.max_holding_period):
-            entry_price = close[i]
+            # Use next open for realistic execution simulation
+            entry_price = opens[i + 1]
 
             # Upper and lower barriers
             upper_barrier = entry_price * (1 + tp_adjusted)
@@ -381,9 +383,11 @@ class TripleBarrierLabeler:
         close = df["close"].values
         high = df["high"].values
         low = df["low"].values
+        opens = df["open"].values
 
         for i in range(len(df) - self.config.max_holding_period):
-            entry_price = close[i]
+            # Use next open for realistic execution simulation
+            entry_price = opens[i + 1]
             upper_barrier = entry_price * (1 + tp_adjusted)
             lower_barrier = entry_price * (1 - sl_adjusted)
 
@@ -548,9 +552,11 @@ class DynamicBarrierLabeler(TripleBarrierLabeler):
         close = df["close"].values
         high = df["high"].values
         low = df["low"].values
+        opens = df["open"].values
 
         for i in range(self.lookback, len(df) - self.config.max_holding_period):
-            entry_price = close[i]
+            # Use next open for realistic execution simulation
+            entry_price = opens[i + 1]
 
             # Get dynamic barriers for this point
             tp_pct = take_profit_pct.iloc[i]
@@ -611,9 +617,11 @@ class DynamicBarrierLabeler(TripleBarrierLabeler):
         close = df["close"].values
         high = df["high"].values
         low = df["low"].values
+        opens = df["open"].values
 
         for i in range(self.lookback, len(df) - self.config.max_holding_period):
-            entry_price = close[i]
+            # Use next open for realistic execution simulation
+            entry_price = opens[i + 1]
             
             # Get dynamic barriers for this point
             tp_pct = take_profit_pct.iloc[i]
@@ -809,9 +817,11 @@ class RegimeAwareBarrierLabeler(DynamicBarrierLabeler):
         atr_pct = atr / close
         
         labels = pd.Series(index=df.index, dtype=float)
+        opens = df['open']
         
         for i in range(14, len(df) - self.config.max_holding_period):
-            entry_price = close.iloc[i]
+            # Use next open for realistic execution simulation
+            entry_price = opens.iloc[i + 1]
             current_atr_pct = atr_pct.iloc[i]
             
             # Detect regime
@@ -931,9 +941,11 @@ def create_labels_for_training(
                 close = df["close"].values
                 high = df["high"].values
                 low = df["low"].values
+                opens = df["open"].values
                 
                 for i in range(14, len(df) - self.config.max_holding_period):
-                    entry_price = close[i]
+                    # Use next open for realistic execution simulation
+                    entry_price = opens[i + 1]
                     
                     # Get ATR-based barriers for this point
                     tp_pct = take_profit_pct.iloc[i]

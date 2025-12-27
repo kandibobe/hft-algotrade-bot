@@ -71,7 +71,7 @@ class WebSocketDataStream:
         async with WebSocketDataStream(config) as stream:
             @stream.on_ticker
             async def handle_ticker(ticker: TickerData):
-                print(f"{ticker.symbol}: {ticker.last}")
+                logger.info(f"{ticker.symbol}: {ticker.last}")
 
             await stream.start()
             await asyncio.sleep(60)  # Run for 60 seconds

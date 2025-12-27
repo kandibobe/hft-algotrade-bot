@@ -98,6 +98,19 @@ class RiskConfig(BaseModel):
     atr_multiplier: float = Field(
         default=2.0, ge=0.5, le=5.0, description="ATR multiplier for stop-loss distance"
     )
+
+    # Liquidation Guard
+    liquidation_buffer: float = Field(
+        default=0.20, ge=0.05, le=0.50, description="Safety buffer distance to liquidation price"
+    )
+    max_safe_leverage: float = Field(
+        default=3.0, ge=1.0, le=20.0, description="Max allowed leverage"
+    )
+
+    # Correlation Guard
+    max_correlation: float = Field(
+        default=0.70, ge=0.0, le=1.0, description="Max allowed correlation between assets"
+    )
     
     @model_validator(mode="after")
     def validate_risk_reward(self) -> "RiskConfig":

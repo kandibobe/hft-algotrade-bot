@@ -39,10 +39,10 @@ try:
     import onnxruntime as ort
 
     ONNX_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     ort = None
     ONNX_AVAILABLE = False
-    logging.warning("ONNX Runtime not available. Install with: pip install onnxruntime")
+    logging.info(f"ONNX Runtime not available (Optional): {e}")
 
 logger = logging.getLogger(__name__)
 

@@ -13,10 +13,12 @@ import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitState
 from .correlation import CorrelationAnalyzer
+from .liquidation import LiquidationGuard, LiquidationConfig
 from .position_sizing import PositionSizer, PositionSizingConfig
 
 logger = logging.getLogger(__name__)
@@ -29,24 +31,24 @@ class RiskMetrics:
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
     # Portfolio metrics
-    total_exposure: float = 0.0
-    exposure_pct: float = 0.0
+    total_exposure: Decimal = Decimal("0.0")
+    exposure_pct: Decimal = Decimal("0.0")
     open_positions: int = 0
 
     # PnL metrics
-    daily_pnl: float = 0.0
-    daily_pnl_pct: float = 0.0
-    unrealized_pnl: float = 0.0
+    daily_pnl: Decimal = Decimal("0.0")
+    daily_pnl_pct: Decimal = Decimal("0.0")
+    unrealized_pnl: Decimal = Decimal("0.0")
 
     # Risk metrics
-    current_drawdown_pct: float = 0.0
-    var_95: float = 0.0
-    sharpe_estimate: float = 0.0
+    current_drawdown_pct: Decimal = Decimal("0.0")
+    var_95: Decimal = Decimal("0.0")
+    sharpe_estimate: Decimal = Decimal("0.0")
 
     # Circuit breaker
     circuit_state: str = "closed"
     can_trade: bool = True
-    position_multiplier: float = 1.0
+    position_multiplier: Decimal = Decimal("1.0")
 
 
 class RiskManager:
@@ -61,15 +63,17 @@ class RiskManager:
         self,
         circuit_config: Optional[CircuitBreakerConfig] = None,
         sizing_config: Optional[PositionSizingConfig] = None,
+        liquidation_config: Optional[LiquidationConfig] = None,
         enable_notifications: bool = True,
     ):
         # Initialize components
         self.circuit_breaker = CircuitBreaker(circuit_config)
         self.position_sizer = PositionSizer(sizing_config)
+        self.liquidation_guard = LiquidationGuard(liquidation_config)
         self.correlation_analyzer = CorrelationAnalyzer()
 
         # State
-        self._account_balance: float = 0.0
+        self._account_balance: Decimal = Decimal("0.0")
         self._positions: Dict[str, Dict] = {}
         self._trade_history: List[Dict] = []
         self._metrics: RiskMetrics = RiskMetrics()
@@ -85,7 +89,7 @@ class RiskManager:
         logger.info("Risk Manager initialized")
 
     def initialize(
-        self, account_balance: float, existing_positions: Optional[Dict[str, Dict]] = None
+        self, account_balance: float | Decimal, existing_positions: Optional[Dict[str, Dict]] = None
     ) -> None:
         """
         Initialize risk manager with account state.
@@ -95,11 +99,11 @@ class RiskManager:
             existing_positions: Dict of symbol -> position details
         """
         with self._lock:
-            self._account_balance = account_balance
+            self._account_balance = Decimal(str(account_balance))
             self._positions = existing_positions or {}
 
             # Initialize circuit breaker
-            self.circuit_breaker.initialize_session(account_balance)
+            self.circuit_breaker.initialize_session(float(self._account_balance))
 
             # Update position sizer
             position_values = {s: p.get("value", 0) for s, p in self._positions.items()}
@@ -114,7 +118,12 @@ class RiskManager:
         )
 
     def evaluate_trade(
-        self, symbol: str, entry_price: float, stop_loss_price: float, side: str = "long", **kwargs
+        self,
+        symbol: str,
+        entry_price: float | Decimal,
+        stop_loss_price: float | Decimal,
+        side: str = "long",
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Evaluate whether a trade should be taken.
@@ -125,15 +134,19 @@ class RiskManager:
         - Risk metrics
         - Warnings
         """
+        # Convert inputs to Decimal
+        d_entry_price = Decimal(str(entry_price))
+        d_stop_loss_price = Decimal(str(stop_loss_price))
+
         result = {
             "allowed": False,
             "symbol": symbol,
             "side": side,
-            "entry_price": entry_price,
-            "stop_loss_price": stop_loss_price,
-            "position_size": 0.0,
-            "position_value": 0.0,
-            "risk_amount": 0.0,
+            "entry_price": d_entry_price,
+            "stop_loss_price": d_stop_loss_price,
+            "position_size": Decimal("0.0"),
+            "position_value": Decimal("0.0"),
+            "risk_amount": Decimal("0.0"),
             "warnings": [],
             "rejection_reason": None,
         }
@@ -148,12 +161,27 @@ class RiskManager:
             result["rejection_reason"] = f"Already in position for {symbol}"
             return result
 
+        # Check liquidation risk
+        leverage = kwargs.get("leverage", 1.0)
+        is_safe, liq_reason = self.liquidation_guard.check_trade_safety(
+            float(d_entry_price), float(d_stop_loss_price), leverage, side
+        )
+
+        if not is_safe:
+            result["rejection_reason"] = f"Liquidation Risk: {liq_reason}"
+            return result
+
+        # Check correlation risk (using cached correlation matrix if available)
+        # Note: CorrelationAnalyzer needs external update via update_market_data or separate job
+        # Here we assume PositionSizer handles exposure checks if matrix is set
+        
         # Calculate position size
         try:
+            # Note: PositionSizer still expects floats, converting for compatibility
             sizing_result = self.position_sizer.calculate_position_size(
-                account_balance=self._account_balance,
-                entry_price=entry_price,
-                stop_loss_price=stop_loss_price,
+                account_balance=float(self._account_balance),
+                entry_price=float(d_entry_price),
+                stop_loss_price=float(d_stop_loss_price),
                 method="optimal",
                 **kwargs,
             )
@@ -163,8 +191,18 @@ class RiskManager:
 
         # Apply circuit breaker multiplier
         multiplier = self.circuit_breaker.get_position_multiplier()
-        sizing_result["position_size"] *= multiplier
-        sizing_result["position_value"] *= multiplier
+        # Convert sizing results to Decimal
+        pos_size = Decimal(str(sizing_result["position_size"]))
+        pos_value = Decimal(str(sizing_result["position_value"]))
+        
+        # Apply multiplier (Decimal arithmetic)
+        d_multiplier = Decimal(str(multiplier))
+        pos_size *= d_multiplier
+        pos_value *= d_multiplier
+
+        # Update sizing result for return
+        sizing_result["position_size"] = float(pos_size)
+        sizing_result["position_value"] = float(pos_value)
 
         if multiplier < 1.0:
             result["warnings"].append(
@@ -172,8 +210,9 @@ class RiskManager:
             )
 
         # Check portfolio risk
+        # Note: Using float for compatibility with existing position_sizer methods
         allowed, reason = self.position_sizer.check_portfolio_risk(
-            sizing_result, symbol, self._account_balance
+            sizing_result, symbol, float(self._account_balance)
         )
 
         if not allowed:
@@ -182,9 +221,9 @@ class RiskManager:
 
         # Trade approved
         result["allowed"] = True
-        result["position_size"] = sizing_result["position_size"]
-        result["position_value"] = sizing_result["position_value"]
-        result["risk_amount"] = sizing_result.get("risk_amount", 0)
+        result["position_size"] = pos_size
+        result["position_value"] = pos_value
+        result["risk_amount"] = Decimal(str(sizing_result.get("risk_amount", 0)))
         result["sizing_method"] = sizing_result.get("method")
         result["sizing_details"] = sizing_result
 
@@ -193,18 +232,22 @@ class RiskManager:
     def record_entry(
         self,
         symbol: str,
-        entry_price: float,
-        position_size: float,
-        stop_loss_price: float,
+        entry_price: float | Decimal,
+        position_size: float | Decimal,
+        stop_loss_price: float | Decimal,
         **kwargs,
     ) -> None:
         """Record position entry."""
+        d_entry_price = Decimal(str(entry_price))
+        d_position_size = Decimal(str(position_size))
+        d_stop_loss_price = Decimal(str(stop_loss_price))
+
         with self._lock:
             self._positions[symbol] = {
-                "entry_price": entry_price,
-                "size": position_size,
-                "stop_loss": stop_loss_price,
-                "value": entry_price * position_size,
+                "entry_price": float(d_entry_price),  # Store as float for compatibility
+                "size": float(d_position_size),
+                "stop_loss": float(d_stop_loss_price),
+                "value": float(d_entry_price * d_position_size),
                 "entry_time": datetime.utcnow(),
                 **kwargs,
             }
@@ -217,8 +260,10 @@ class RiskManager:
 
         logger.info(f"Entry recorded: {symbol} @ {entry_price} x {position_size}")
 
-    def record_exit(self, symbol: str, exit_price: float, reason: str = "") -> Dict:
+    def record_exit(self, symbol: str, exit_price: float | Decimal, reason: str = "") -> Dict:
         """Record position exit and return trade result."""
+        d_exit_price = Decimal(str(exit_price))
+
         with self._lock:
             if symbol not in self._positions:
                 logger.warning(f"No position found for {symbol}")
@@ -226,11 +271,24 @@ class RiskManager:
 
             position = self._positions.pop(symbol)
 
-            # Calculate P&L
-            entry_price = position["entry_price"]
-            size = position["size"]
-            pnl = (exit_price - entry_price) * size
-            pnl_pct = (exit_price - entry_price) / entry_price
+            # Calculate P&L using Decimal
+            d_entry_price = Decimal(str(position["entry_price"]))
+            d_size = Decimal(str(position["size"]))
+            
+            d_pnl = (d_exit_price - d_entry_price) * d_size
+            d_pnl_pct = (d_exit_price - d_entry_price) / d_entry_price
+
+            trade_result = {
+                "symbol": symbol,
+                "entry_price": float(d_entry_price),
+                "exit_price": float(d_exit_price),
+                "size": float(d_size),
+                "pnl": float(d_pnl),
+                "pnl_pct": float(d_pnl_pct),
+                "reason": reason,
+                "entry_time": position.get("entry_time"),
+                "exit_time": datetime.utcnow(),
+            }
 
             trade_result = {
                 "symbol": symbol,
@@ -251,8 +309,8 @@ class RiskManager:
             self.circuit_breaker.record_trade(trade_result, pnl_pct)
 
             # Update balance
-            self._account_balance += pnl
-            self.circuit_breaker.update_balance(self._account_balance)
+            self._account_balance += d_pnl
+            self.circuit_breaker.update_balance(float(self._account_balance))
 
             # Update position sizer
             position_values = {s: p.get("value", 0) for s, p in self._positions.items()}
@@ -318,21 +376,34 @@ class RiskManager:
         total_exposure = sum(p.get("value", 0) for p in self._positions.values())
         unrealized = sum(p.get("unrealized_pnl", 0) for p in self._positions.values())
 
+        # Convert to Decimal
+        d_total_exposure = Decimal(str(total_exposure))
+        d_unrealized = Decimal(str(unrealized))
+
         cb_status = self.circuit_breaker.get_status()
+        
+        # Calculate exposure pct safely
+        exposure_pct = Decimal("0.0")
+        if self._account_balance > 0:
+            exposure_pct = d_total_exposure / self._account_balance
+
+        # Calculate daily pnl
+        daily_pnl = Decimal(str(self.circuit_breaker.session.current_balance - self.circuit_breaker.session.initial_balance))
 
         self._metrics = RiskMetrics(
             timestamp=datetime.utcnow(),
-            total_exposure=total_exposure,
-            exposure_pct=total_exposure / self._account_balance if self._account_balance > 0 else 0,
+            total_exposure=d_total_exposure,
+            exposure_pct=exposure_pct,
             open_positions=len(self._positions),
-            daily_pnl=self.circuit_breaker.session.current_balance
-            - self.circuit_breaker.session.initial_balance,
-            daily_pnl_pct=cb_status["daily_pnl_pct"],
-            unrealized_pnl=unrealized,
-            current_drawdown_pct=cb_status["drawdown_pct"],
+            daily_pnl=daily_pnl,
+            daily_pnl_pct=Decimal(str(cb_status["daily_pnl_pct"])),
+            unrealized_pnl=d_unrealized,
+            current_drawdown_pct=Decimal(str(cb_status["drawdown_pct"])),
+            var_95=Decimal("0.0"), # Placeholder as not calculated here
+            sharpe_estimate=Decimal("0.0"), # Placeholder
             circuit_state=cb_status["state"],
             can_trade=cb_status["can_trade"],
-            position_multiplier=cb_status["position_multiplier"],
+            position_multiplier=Decimal(str(cb_status["position_multiplier"])),
         )
 
     def _on_circuit_state_change(self, status: Dict) -> None:
@@ -357,3 +428,51 @@ class RiskManager:
                 handler(message, level)
             except Exception as e:
                 logger.error(f"Notification handler error: {e}")
+
+    @staticmethod
+    def calculate_safe_size(
+        account_balance: float,
+        entry_price: float,
+        stop_loss_price: float,
+        max_risk_pct: float = 0.01,
+        max_position_pct: float = 0.05,
+        leverage: float = 1.0
+    ) -> float:
+        """
+        Pure, stateless position sizing calculation for backtesting.
+        
+        Args:
+            account_balance: Total account value
+            entry_price: Entry price
+            stop_loss_price: Stop loss price
+            max_risk_pct: Max risk per trade (default 1%)
+            max_position_pct: Max position size (default 5%)
+            leverage: Trade leverage
+            
+        Returns:
+            Position size in stake currency
+        """
+        if account_balance <= 0 or entry_price <= 0:
+            return 0.0
+            
+        # 1. Calculate risk per trade
+        risk_amount = account_balance * max_risk_pct
+        
+        # 2. Calculate stop distance
+        stop_dist_pct = abs(entry_price - stop_loss_price) / entry_price
+        
+        if stop_dist_pct < 0.001: # Avoid division by zero or tiny stops
+            stop_dist_pct = 0.001
+            
+        # 3. Calculate size based on risk
+        # Risk = Size * StopDist
+        # Size = Risk / StopDist
+        size_by_risk = risk_amount / stop_dist_pct
+        
+        # 4. Cap by max position size
+        size_by_cap = account_balance * max_position_pct * leverage
+        
+        # 5. Final size
+        final_size = min(size_by_risk, size_by_cap)
+        
+        return final_size
