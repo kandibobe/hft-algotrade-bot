@@ -26,12 +26,20 @@ import logging
 from typing import Optional
 
 import yaml
-from pydantic import ConfigDict, Field, field_validator
 try:
     from pydantic_settings import BaseSettings, SettingsConfigDict
+    from pydantic import ConfigDict, Field, field_validator
 except ImportError:
-    from pydantic import BaseSettings
-    SettingsConfigDict = None
+    try:
+        # Fallback for Pydantic v2 without pydantic-settings installed (using v1 compat layer)
+        from pydantic.v1 import BaseSettings, Field, validator as field_validator
+        SettingsConfigDict = None
+        ConfigDict = None
+    except ImportError:
+        # Fallback for Pydantic v1
+        from pydantic import BaseSettings, Field, validator as field_validator
+        SettingsConfigDict = None
+        ConfigDict = None
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +49,8 @@ class TradingConfig(BaseSettings):
 
     # Exchange
     exchange_name: str = "binance"
-    api_key: str = Field(..., validation_alias="BINANCE_API_KEY")
-    api_secret: str = Field(..., validation_alias="BINANCE_API_SECRET")
+    api_key: Optional[str] = Field(None, validation_alias="BINANCE_API_KEY")
+    api_secret: Optional[str] = Field(None, validation_alias="BINANCE_API_SECRET")
 
     # Risk Management
     max_position_pct: float = Field(0.10, ge=0.01, le=0.50)  # 1-50%

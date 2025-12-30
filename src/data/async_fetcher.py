@@ -411,14 +411,23 @@ class AsyncDataFetcher:
         if not all_data:
             return pd.DataFrame()
 
-        combined = pd.concat(all_data)
+        combined = pd.concat(all_data, axis=0)
+        # Deduplicate and sort
         combined = combined[~combined.index.duplicated(keep="last")]
         combined.sort_index(inplace=True)
 
+        # Ensure timezone-naive comparison if needed
+        start_ts = pd.Timestamp(start_date)
+        end_ts = pd.Timestamp(end_date)
+        
+        if combined.index.tz is not None:
+            if start_ts.tz is None: start_ts = start_ts.tz_localize(combined.index.tz)
+            if end_ts.tz is None: end_ts = end_ts.tz_localize(combined.index.tz)
+
         # Filter to exact date range
         combined = combined[
-            (combined.index >= pd.Timestamp(start_date))
-            & (combined.index <= pd.Timestamp(end_date))
+            (combined.index >= start_ts)
+            & (combined.index <= end_ts)
         ]
 
         logger.info(

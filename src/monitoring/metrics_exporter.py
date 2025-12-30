@@ -114,6 +114,21 @@ class TradingMetricsExporter:
             f"{self.namespace}_circuit_breaker_status", "Circuit breaker status (0=off, 1=on)"
         )
 
+        # MFT / Micro-structure metrics
+        self.market_spread_pct = Gauge(
+            f"{self.namespace}_market_spread_pct", "Current bid-ask spread percentage", ["symbol"]
+        )
+        
+        self.orderbook_imbalance = Gauge(
+            f"{self.namespace}_orderbook_imbalance", "Current orderbook imbalance (-1 to 1)", ["symbol"]
+        )
+
+        self.ws_message_latency = Histogram(
+            f"{self.namespace}_ws_message_latency_ms",
+            "WebSocket message processing latency in milliseconds",
+            buckets=[0.1, 0.5, 1, 5, 10, 50, 100]
+        )
+
         # Smart limit order metrics
         self.fee_savings_total = Gauge(
             f"{self.namespace}_fee_savings_total_usd", 
@@ -299,6 +314,19 @@ class TradingMetricsExporter:
 
         if self.trading_metrics:
             self.trading_metrics.observe_latency(latency_ms / 1000.0, "strategy")
+
+    def record_ws_metrics(self, symbol: str, spread_pct: float, imbalance: float) -> None:
+        """Record real-time market microstructure metrics."""
+        if not self._enabled:
+            return
+        self.market_spread_pct.labels(symbol=symbol).set(spread_pct)
+        self.orderbook_imbalance.labels(symbol=symbol).set(imbalance)
+
+    def record_ws_latency(self, latency_ms: float) -> None:
+        """Record websocket processing latency."""
+        if not self._enabled:
+            return
+        self.ws_message_latency.observe(latency_ms)
 
 
 # Global exporter instance

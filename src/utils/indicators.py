@@ -26,8 +26,14 @@ logger = logging.getLogger(__name__)
 
 
 def _dataframe_hash(df):
-    """Хэш DataFrame для кэширования."""
-    return hashlib.md5(pickle.dumps(df.values)).hexdigest()
+    """
+    Хэш DataFrame для кэширования.
+    Оптимизировано для скорости: использует форму и последние значения.
+    """
+    # Вместо пиклирования всего DF, используем форму и последние 5 строк
+    # Этого достаточно для большинства сценариев в трейдинге
+    hash_base = f"{df.shape}_{df.iloc[-5:].values.tobytes()}"
+    return hashlib.md5(hash_base.encode()).hexdigest()
 
 
 def calculate_ema(series: pd.Series, period: int = 20, adjust: bool = False) -> pd.Series:
@@ -304,6 +310,7 @@ def calculate_adx(
 ) -> Dict[str, pd.Series]:
     """
     Calculate Average Directional Index.
+    Оптимизированная версия с использованием numpy для внутренних расчетов.
 
     Args:
         high: High price series
@@ -314,35 +321,45 @@ def calculate_adx(
     Returns:
         Dict with keys: 'adx', 'plus_di', 'minus_di'
     """
+    # Переводим в numpy для скорости
+    h = high.values
+    l = low.values
+    c = close.values
+    
     # True Range
     atr = calculate_atr(high, low, close, period)
+    atr_v = atr.values
 
     # Directional Movement
-    up_move = high.diff()
-    down_move = -low.diff()
+    up_move = np.zeros_like(h)
+    down_move = np.zeros_like(h)
+    up_move[1:] = h[1:] - h[:-1]
+    down_move[1:] = l[:-1] - l[1:]
 
     # +DM and -DM
-    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0)
-    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0)
+    plus_dm_raw = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+    minus_dm_raw = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
 
-    plus_dm = pd.Series(plus_dm, index=high.index)
-    minus_dm = pd.Series(minus_dm, index=high.index)
-
-    # Smooth DM
-    plus_dm_smooth = plus_dm.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
-    minus_dm_smooth = minus_dm.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    # Smooth DM (using pandas EWM for simplicity as it's already vectorized)
+    plus_dm_smooth = pd.Series(plus_dm_raw).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    minus_dm_smooth = pd.Series(minus_dm_raw).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
 
     # +DI and -DI
-    plus_di = 100 * plus_dm_smooth / atr.replace(0, np.nan)
-    minus_di = 100 * minus_dm_smooth / atr.replace(0, np.nan)
+    plus_di = 100 * plus_dm_smooth.values / np.where(atr_v == 0, np.nan, atr_v)
+    minus_di = 100 * minus_dm_smooth.values / np.where(atr_v == 0, np.nan, atr_v)
 
     # DX
-    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    denom = plus_di + minus_di
+    dx = 100 * np.abs(plus_di - minus_di) / np.where(denom == 0, np.nan, denom)
 
     # ADX (smoothed DX)
-    adx = dx.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    adx = pd.Series(dx).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
 
-    return {"adx": adx.fillna(0), "plus_di": plus_di.fillna(0), "minus_di": minus_di.fillna(0)}
+    return {
+        "adx": pd.Series(adx.values, index=high.index).fillna(0),
+        "plus_di": pd.Series(plus_di, index=high.index).fillna(0),
+        "minus_di": pd.Series(minus_di, index=high.index).fillna(0)
+    }
 
 
 @lru_cache(maxsize=100)
@@ -428,6 +445,21 @@ def calculate_all_indicators(
     # Volume SMA
     result["volume_sma"] = calculate_sma(result["volume"], 20)
 
-    logger.info(f"Calculated {len(result.columns) - len(df.columns)} indicators")
+    # CRITICAL: Sanitize all new columns
+    # We only sanitize columns that were added
+    new_cols = [c for c in result.columns if c not in df.columns]
+    for col in new_cols:
+        # 1. Replace Inf with NaN
+        result[col] = result[col].replace([np.inf, -np.inf], np.nan)
+        # 2. Fill NaN with appropriate defaults
+        if "rsi" in col or "stoch" in col:
+            result[col] = result[col].fillna(50)
+        elif "returns" in col or "diff" in col or "macd" in col:
+            result[col] = result[col].fillna(0)
+        else:
+            # For most indicators, forward fill is safest, then backward fill
+            result[col] = result[col].ffill().bfill().fillna(0)
+
+    logger.info(f"Calculated and sanitized {len(result.columns) - len(df.columns)} indicators")
 
     return result

@@ -192,6 +192,7 @@ class MLInferenceService:
         redis_client: Optional[IRedisClient] = None,
         redis_url: str = "redis://localhost:6379",
         models: Optional[Dict[str, MLModelConfig]] = None,
+        max_cache_size: int = 1000
     ) -> None:
         """
         Initialize ML Inference Service with dependency injection.
@@ -206,6 +207,7 @@ class MLInferenceService:
         self._redis = redis_client
         self._running = False
         self._prediction_cache: Dict[str, PredictionResult] = {}
+        self._max_cache_size = max_cache_size
         self._pending_requests: Dict[str, asyncio.Future] = {}
         self._stats = {
             "total_requests": 0,
@@ -313,7 +315,13 @@ class MLInferenceService:
 
             result = await asyncio.wait_for(future, timeout=timeout / 1000.0)
 
-            # Cache result
+            # Cache result with size limit
+            if len(self._prediction_cache) >= self._max_cache_size:
+                # Remove oldest (by timestamp)
+                oldest_key = min(self._prediction_cache.keys(), 
+                                key=lambda k: self._prediction_cache[k].timestamp)
+                self._prediction_cache.pop(oldest_key)
+                
             self._prediction_cache[cache_key] = result
 
             # Update stats
@@ -365,12 +373,25 @@ class MLInferenceService:
             try:
                 if self._redis:
                     # Listen on result queue
-                    result = await self._redis.brpop(["ml:results"], timeout=1)
+                    # FIX: Handle potential Redis connection drops
+                    try:
+                        result = await self._redis.brpop(["ml:results"], timeout=1)
+                    except Exception as e:
+                        logger.error(f"Redis connection lost in listener: {e}")
+                        await asyncio.sleep(2)
+                        continue
 
                     if result:
                         _, data = result
                         result_data = json.loads(data)
                         request_id = result_data["request_id"]
+
+                        # FIX: Clean up stale pending requests to prevent memory leak
+                        now = time.time()
+                        stale_ids = [rid for rid, fut in self._pending_requests.items() 
+                                    if now - float(rid.split('_')[-1])/1e9 > 30]
+                        for sid in stale_ids:
+                            self._pending_requests.pop(sid, None)
 
                         if request_id in self._pending_requests:
                             prediction_result = PredictionResult(

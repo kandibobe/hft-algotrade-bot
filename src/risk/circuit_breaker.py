@@ -27,6 +27,8 @@ try:
 except ImportError:
     METRICS_AVAILABLE = False
 
+from src.utils.notifications import get_notifier
+
 logger = logging.getLogger(__name__)
 
 
@@ -392,12 +394,16 @@ class CircuitBreaker:
         
         self.save_state()
 
-        logger.error(
-            f"🚨 CIRCUIT BREAKER TRIPPED: {reason.value}\n"
-            f"   Daily PnL: {self.session.daily_pnl_pct:.2%}\n"
-            f"   Drawdown: {self.session.drawdown_pct:.2%}\n"
-            f"   Consecutive Losses: {self.session.consecutive_losses}"
+        msg = (
+            f"CIRCUIT BREAKER TRIPPED: {reason.value}\n"
+            f"Daily PnL: {self.session.daily_pnl_pct:.2%}\n"
+            f"Drawdown: {self.session.drawdown_pct:.2%}\n"
+            f"Consecutive Losses: {self.session.consecutive_losses}"
         )
+        logger.error(f"🚨 {msg}")
+        
+        # Send notification
+        get_notifier().send_notification(msg, level="critical")
 
         # Update metrics if available
         if METRICS_AVAILABLE:
@@ -424,7 +430,11 @@ class CircuitBreaker:
         
         self.save_state()
 
-        logger.info("Circuit breaker reset to CLOSED state")
+        msg = "Circuit breaker reset to CLOSED state. Trading resumed."
+        logger.info(f"✅ {msg}")
+        
+        # Send notification
+        get_notifier().send_notification(msg, level="info")
 
         # Update metrics if available
         if METRICS_AVAILABLE:

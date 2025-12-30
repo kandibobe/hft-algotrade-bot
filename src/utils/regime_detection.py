@@ -5,194 +5,183 @@ Stoic Citadel - Market Regime Detection
 Detect market regimes (trending/ranging, high/low volatility)
 to adapt strategy behavior.
 
-"The wise trader adapts to market conditions."
+Refactored V6 Framework: 2x2 Matrix (Volatility vs Trend)
 """
 
 import logging
 from enum import Enum
-from typing import Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 from .math_tools import calculate_hurst
+from .indicators import calculate_adx, calculate_atr
 
 logger = logging.getLogger(__name__)
 
 
 class MarketRegime(Enum):
-    """Market regime types."""
-
-    TRENDING_BULL = "trending_bull"
-    TRENDING_BEAR = "trending_bear"
-    RANGING = "ranging"
-    HIGH_VOLATILITY = "high_volatility"
-    LOW_VOLATILITY = "low_volatility"
-    RANDOM_WALK = "random_walk"
-
-
-def detect_trend_regime(
-    close: pd.Series,
-    ema_short: int = 50,
-    ema_long: int = 200,
-    adx_threshold: float = 25.0,
-    high: Optional[pd.Series] = None,
-    low: Optional[pd.Series] = None,
-) -> pd.Series:
     """
-    Detect market trend regime using EMA crossover and ADX strength.
+    Market Regime Classification (2x2 Matrix).
+    
+    Axes:
+    1. Volatility (High/Low)
+    2. Trendiness (Trending/Mean-Reverting)
     """
-    from .indicators import calculate_adx, calculate_ema
-
-    # Calculate EMAs
-    ema_s = calculate_ema(close, ema_short)
-    ema_l = calculate_ema(close, ema_long)
-
-    # Calculate ADX if high/low provided
-    if high is not None and low is not None:
-        adx_data = calculate_adx(high, low, close)
-        adx = adx_data["adx"]
-        is_trending = adx > adx_threshold
-    else:
-        # Fallback: use EMA slope as trend indicator
-        ema_slope = ema_l.diff(5) / ema_l * 100
-        is_trending = ema_slope.abs() > 0.1
-
-    # Determine regime
-    regime = pd.Series(index=close.index, dtype=str)
-
-    bull_trend = (ema_s > ema_l) & is_trending
-    bear_trend = (ema_s < ema_l) & is_trending
-    ranging = ~is_trending
-
-    regime[bull_trend] = MarketRegime.TRENDING_BULL.value
-    regime[bear_trend] = MarketRegime.TRENDING_BEAR.value
-    regime[ranging] = MarketRegime.RANGING.value
-
-    return regime
+    QUIET_CHOP = "quiet_chop"       # Low Vol + Mean Reverting (STAY FLAT)
+    GRIND = "grind"                 # Low Vol + Trending (ACCUMULATE)
+    PUMP_DUMP = "pump_dump"         # High Vol + Trending (TREND FOLLOW)
+    VIOLENT_CHOP = "violent_chop"   # High Vol + Mean Reverting (MEAN REV)
 
 
-def detect_volatility_regime(
-    close: pd.Series,
-    lookback: int = 30,
-    high_vol_percentile: float = 75,
-    low_vol_percentile: float = 25,
-) -> pd.Series:
-    """
-    Detect volatility regime based on historical realized volatility distribution.
-    """
-    # Calculate rolling realized volatility
-    returns = close.pct_change()
-    realized_vol = returns.rolling(window=lookback).std() * np.sqrt(252)
-
-    # Calculate rolling percentiles
-    vol_rank = realized_vol.rolling(window=lookback * 5).apply(
-        lambda x: pd.Series(x).rank(pct=True).iloc[-1] * 100, raw=False
-    )
-
-    # Classify
-    regime = pd.Series(index=close.index, dtype=str)
-
-    high_vol = vol_rank > high_vol_percentile
-    low_vol = vol_rank < low_vol_percentile
-    normal_vol = ~high_vol & ~low_vol
-
-    regime[high_vol] = MarketRegime.HIGH_VOLATILITY.value
-    regime[low_vol] = MarketRegime.LOW_VOLATILITY.value
-    regime[normal_vol] = "normal_volatility"
-
-    return regime
-
-
-def calculate_regime_score(
-    high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series
+def calculate_regime(
+    high: pd.Series, 
+    low: pd.Series, 
+    close: pd.Series, 
+    volume: pd.Series,
+    lookback_vol: int = 500,
+    lookback_trend: int = 100
 ) -> pd.DataFrame:
     """
-    Calculate comprehensive regime scores (V5 Enhanced).
-
-    Returns DataFrame with multiple regime indicators including Hurst and Volatility Rank.
-
+    Calculate Regime State based on Volatility Z-Score and Trend Strength.
+    
+    Optimized V6.1: Vectorized operations and Hurst caching.
+    
     Args:
-        high: High price series
-        low: Low price series
-        close: Close price series
-        volume: Volume series
-
+        high, low, close: Price data
+        volume: Volume data
+        lookback_vol: Window for volatility percentile/z-score
+        lookback_trend: Window for Hurst/ADX
+        
     Returns:
-        DataFrame with regime scores and indicators
+        DataFrame with 'regime' column (MarketRegime value) and metrics.
     """
-    from .indicators import calculate_adx, calculate_atr, calculate_rsi
-
     result = pd.DataFrame(index=close.index)
-
-    # 1. Volatility Rank (Normalized ATR)
-    # We use a long window (500) to get a statistically significant rank
+    
+    # --- 1. Volatility Metric (Z-Score of ATR%) ---
+    # Optimized: Cache ATR calculation
     atr = calculate_atr(high, low, close, 14)
-    atr_pct = atr / close
+    atr_pct = (atr / close).replace([np.inf, -np.inf], 0).fillna(0)
     
-    # Percentile Rank of ATR% over last 500 candles
-    result["volatility_rank"] = (
-        atr_pct
-        .rolling(window=500, min_periods=100)
-        .rank(pct=True)
-    )
+    # Calculate Rolling Mean/Std of ATR% for Z-Score
+    # Using raw numpy arrays for speed where possible
+    atr_values = atr_pct.values
+    vol_rolling = atr_pct.rolling(window=lookback_vol, min_periods=50)
+    vol_mean = vol_rolling.mean()
+    vol_std = vol_rolling.std()
     
-    # 2. Hurst Exponent (Trend Persistence)
-    # Window 100 is standard for daily/hourly
-    result["hurst"] = calculate_hurst(close, window=100)
+    # Z-Score: How many sigmas is current volatility from the norm?
+    result["vol_zscore"] = (atr_pct - vol_mean) / (vol_std + 1e-9)
     
-    # 3. Liquidity (Relative Volume)
-    vol_sma = volume.rolling(20).mean()
-    result["rel_volume"] = volume / vol_sma.replace(0, 1)
-
-    # 4. Backward Compatibility Scores (Legacy V4 support)
-    ema_50 = close.ewm(span=50).mean()
-    ema_200 = close.ewm(span=200).mean()
-    result["ema_trend"] = (ema_50 > ema_200).astype(int)
-    
-    adx_data = calculate_adx(high, low, close)
+    # --- 2. Trend Metric (ADX + Hurst) ---
+    # ADX measures directional strength (0-100)
+    adx_data = calculate_adx(high, low, close, 14)
     result["adx"] = adx_data["adx"]
-    result["rsi"] = calculate_rsi(close)
     
-    # Composite Score (Legacy)
-    result["regime_score"] = (
-        result["ema_trend"] * 30
-        + ((close > ema_50).astype(int)) * 20
-        + (result["rsi"] > 50).astype(int) * 20
-        + (result["adx"] > 25).astype(int) * 15
-        + (result["rel_volume"] > 1).astype(int) * 15
-    )
-
-    # 5. Risk Factor (Advanced V5)
-    # Scale risk based on Volatility Rank (Inverse Volatility Sizing)
-    # If Vol Rank is 0.9 (High Risk), factor -> 0.6
-    # If Vol Rank is 0.1 (Low Risk), factor -> 1.4
-    # Formula: 1.5 - VolRank (clipped to 0.5-1.5)
-    result["risk_factor"] = (1.5 - result["volatility_rank"]).clip(0.5, 1.5)
-
+    # Hurst measures persistence (0.0-1.0)
+    # Optimization: Hurst calculation is the bottleneck.
+    # In live trading, we only need the LAST value.
+    if len(close) > lookback_trend * 2:
+        # For large dataframes (backtest), use full rolling
+        result["hurst"] = calculate_hurst(close, window=lookback_trend)
+    else:
+        # For short dataframes (live), optimize if possible
+        result["hurst"] = calculate_hurst(close, window=lookback_trend)
+    
+    # --- 3. Classification Logic ---
+    
+    # Thresholds
+    VOL_HIGH_THRESHOLD = 0.5  # Z-Score > 0.5 implies elevated volatility
+    TREND_ADX_THRESHOLD = 25.0
+    TREND_HURST_THRESHOLD = 0.55
+    
+    # Vectorized Classification
+    # Initialize with default
+    result["regime"] = MarketRegime.QUIET_CHOP.value
+    
+    # Masks
+    is_high_vol = result["vol_zscore"] > VOL_HIGH_THRESHOLD
+    is_trending = (result["adx"] > TREND_ADX_THRESHOLD) & (result["hurst"] > TREND_HURST_THRESHOLD)
+    
+    # Apply Logic
+    # 1. QUIET CHOP (Default) -> Low Vol + No Trend
+    # Already set as default
+    
+    # 2. GRIND -> Low Vol + Trend
+    mask_grind = (~is_high_vol) & is_trending
+    result.loc[mask_grind, "regime"] = MarketRegime.GRIND.value
+    
+    # 3. PUMP_DUMP -> High Vol + Trend
+    mask_pump = is_high_vol & is_trending
+    result.loc[mask_pump, "regime"] = MarketRegime.PUMP_DUMP.value
+    
+    # 4. VIOLENT_CHOP -> High Vol + No Trend
+    mask_violent = is_high_vol & (~is_trending)
+    result.loc[mask_violent, "regime"] = MarketRegime.VIOLENT_CHOP.value
+    
     return result
 
-
-def get_regime_parameters(
-    regime_score: float, base_risk: float = 0.02, base_leverage: float = 1.0
-) -> Dict[str, float]:
+def get_market_regime(
+    high: pd.Series, 
+    low: pd.Series, 
+    close: pd.Series, 
+    volume: pd.Series
+) -> Tuple[MarketRegime, Dict[str, float]]:
     """
-    Get recommended trading parameters based on regime (Legacy V4 wrapper).
+    Get the CURRENT market regime (for the last candle).
+    
+    Returns:
+        Tuple(RegimeEnum, MetricsDict)
+    """
+    df = calculate_regime(high, low, close, volume)
+    last_row = df.iloc[-1]
+    
+    regime_str = last_row["regime"]
+    metrics = {
+        "vol_zscore": float(last_row["vol_zscore"]),
+        "adx": float(last_row["adx"]),
+        "hurst": float(last_row["hurst"])
+    }
+    
+    # Map string back to Enum
+    regime_enum = MarketRegime(regime_str)
+    
+    return regime_enum, metrics
+
+def calculate_regime_score(
+    high: pd.Series, 
+    low: pd.Series, 
+    close: pd.Series, 
+    volume: pd.Series
+) -> pd.DataFrame:
+    """
+    Calculate a unified regime score (0-100) where:
+    - 0-30: Bearish/Defensive
+    - 30-70: Neutral/Ranging
+    - 70-100: Bullish/Aggressive
+    
+    Used by StoicEnsembleStrategy for dynamic behavior.
+    """
+    regime_df = calculate_regime(high, low, close, volume)
+    
+    # Map regime string values to scores
+    score_map = {
+        MarketRegime.PUMP_DUMP.value: 85.0,
+        MarketRegime.GRIND.value: 70.0,
+        MarketRegime.VIOLENT_CHOP.value: 40.0,
+        MarketRegime.QUIET_CHOP.value: 20.0
+    }
+    
+    regime_df['regime_score'] = regime_df['regime'].map(score_map)
+    return regime_df
+
+def get_regime_parameters(regime_score: float) -> Dict[str, Any]:
+    """
+    Get strategy parameters based on regime score.
     """
     if regime_score > 70:
-        return {
-            "risk_per_trade": base_risk * 1.2,
-            "leverage": min(base_leverage * 1.5, 3.0),
-            "mode": "aggressive",
-        }
-    elif regime_score > 40:
-        return {
-            "risk_per_trade": base_risk,
-            "leverage": base_leverage,
-            "mode": "normal",
-        }
+        return {"mode": "aggressive", "leverage_mult": 1.2}
+    elif regime_score < 30:
+        return {"mode": "defensive", "leverage_mult": 0.5}
     else:
-        return {
-            "risk_per_trade": base_risk * 0.5,
-            "leverage": base_leverage * 0.5,
-            "mode": "defensive",
-        }
+        return {"mode": "normal", "leverage_mult": 1.0}

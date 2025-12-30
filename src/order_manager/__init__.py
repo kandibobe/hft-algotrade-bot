@@ -17,11 +17,11 @@ from src.order_manager.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
 )
-from src.order_manager.order_executor import (
-    ExecutionMode,
-    ExecutionResult,
-    OrderExecutor,
-)
+# from src.order_manager.order_executor import (
+#     ExecutionMode,
+#     ExecutionResult,
+#     OrderExecutor,
+# )
 from src.order_manager.order_types import (
     LimitOrder,
     MarketOrder,
@@ -42,12 +42,20 @@ from src.order_manager.slippage_simulator import (
     SlippageModel,
     SlippageSimulator,
 )
-from src.order_manager.smart_limit_executor import (
-    ChasingStrategy,
-    SmartExecutionResult,
-    SmartLimitConfig,
-    SmartLimitExecutor,
-)
+try:
+    from src.order_manager.smart_limit_executor import (
+        ChasingStrategy,
+        SmartExecutionResult,
+        SmartLimitConfig,
+        SmartLimitExecutor,
+    )
+except ImportError:
+    ChasingStrategy = None
+    SmartExecutionResult = None
+    SmartLimitConfig = None
+    SmartLimitExecutor = None
+
+from src.order_manager.smart_order_executor import SmartOrderExecutor
 
 __all__ = [
     # Order types
@@ -65,9 +73,10 @@ __all__ = [
     "PositionManager",
     "PositionSide",
     # Execution
-    "OrderExecutor",
-    "ExecutionResult",
-    "ExecutionMode",
+    # "OrderExecutor",
+    # "ExecutionResult",
+    # "ExecutionMode",
+    "SmartOrderExecutor",
     # Risk management
     "CircuitBreaker",
     "CircuitBreakerConfig",

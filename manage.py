@@ -16,13 +16,11 @@ import sys
 import logging
 from pathlib import Path
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger("manage")
+# Configure structured logging
+from src.utils.logger import setup_structured_logging, get_logger
+
+setup_structured_logging(enable_console=True)
+logger = get_logger("manage")
 
 def setup_path():
     """Ensure src is in python path."""
@@ -107,6 +105,20 @@ def main():
     
     args = parser.parse_args()
     
+    # Initialize Configuration Manager
+    try:
+        from src.config.manager import ConfigurationManager
+        # Initialize singleton
+        config = ConfigurationManager.initialize()
+        
+        # Export for Freqtrade (bridge)
+        if args.command in ["backtest", "trade", "optimize"]:
+            ConfigurationManager.export_freqtrade_config("config.json")
+            
+    except Exception as e:
+        logger.error(f"Configuration initialization failed: {e}")
+        sys.exit(1)
+
     if args.command == "train":
         train_command(args)
     elif args.command == "optimize":

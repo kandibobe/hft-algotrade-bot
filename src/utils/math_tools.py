@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Try to import Numba for performance
 try:
-    from numba import jit, float64
+    from numba import jit, float64, int64
     HAVE_NUMBA = True
 except ImportError:
     HAVE_NUMBA = False

@@ -28,12 +28,20 @@ class MLTrainingPipeline:
 
     def __init__(
         self,
-        data_dir: str = "user_data/data/binance",
-        models_dir: str = "user_data/models",
+        data_dir: str = None,
+        models_dir: str = None,
         quick_mode: bool = False
     ):
-        self.data_dir = Path(data_dir)
-        self.models_dir = Path(models_dir)
+        from src.config.manager import config
+        try:
+            cfg = config()
+            exchange_name = cfg.exchange.name
+        except Exception:
+            logger.warning("Config not initialized, defaulting to binance")
+            exchange_name = "binance"
+
+        self.data_dir = Path(data_dir or f"user_data/data/{exchange_name}")
+        self.models_dir = Path(models_dir or "user_data/models")
         self.quick_mode = quick_mode
 
         # Create directories
@@ -42,7 +50,8 @@ class MLTrainingPipeline:
         # Initialize components
         self.feature_engineer = FeatureEngineer()
         self.labeler = TripleBarrierLabeler(config=TripleBarrierConfig())
-        self.registry = ModelRegistry()
+        # Use registry inside models_dir
+        self.registry = ModelRegistry(registry_dir=str(self.models_dir / "registry"))
 
     def load_data(self, pairs: List[str], timeframe: str = "5m") -> Dict[str, pd.DataFrame]:
         """Load data from feather or JSON files."""
@@ -97,6 +106,17 @@ class MLTrainingPipeline:
 
             logger.info(f"  ✅ Loaded {len(df):,} candles")
             logger.info(f"  📅 Range: {df.index[0]} to {df.index[-1]}")
+
+            # Data Validation
+            required_cols = ['open', 'high', 'low', 'close', 'volume']
+            if df[required_cols].isnull().any().any():
+                nan_count = df[required_cols].isnull().sum().sum()
+                logger.warning(f"  ⚠️  {pair}: Found {nan_count} NaNs in OHLCV data. Dropping...")
+                df = df.dropna(subset=required_cols)
+                
+            if len(df) < 100:
+                logger.warning(f"  ⚠️  {pair}: Insufficient data ({len(df)} rows). Skipping.")
+                continue
 
             if self.quick_mode:
                 df = df.tail(1000)
@@ -227,6 +247,13 @@ class MLTrainingPipeline:
 
         # Calculate final metrics on Test set (Unbiased)
         logger.info(f"\n  🧪 Evaluating on Test Set...")
+        
+        # Ensure features match (if feature selection was applied)
+        if hasattr(model, "feature_names_in_"):
+            # Filter X_test to match training features
+            cols = model.feature_names_in_
+            X_test = X_test[cols]
+            
         y_pred = model.predict(X_test)
         
         metrics = {

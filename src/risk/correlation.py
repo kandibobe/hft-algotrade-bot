@@ -156,6 +156,9 @@ class CorrelationManager:
             entry_price = position.get("open_rate", 0)
             stake_amount = position.get("stake_amount", 0)
 
+            if entry_price <= 0:
+                continue
+
             current_price = current_prices.get(pair, entry_price)
 
             # Calculate unrealized P&L
@@ -272,6 +275,10 @@ class DrawdownMonitor:
             return False
 
         return datetime.now() < self.circuit_breaker_until
+
+    def clear_cache(self):
+        """Clear price cache to prevent memory bloat."""
+        self.price_cache.clear()
 
 
 class CorrelationAnalyzer:

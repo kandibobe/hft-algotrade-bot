@@ -21,6 +21,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterator, Literal, Optional, Tuple, Union, Any, Dict, List
 
+import asyncio
 import numpy as np
 import pandas as pd
 
@@ -154,6 +155,31 @@ def get_ohlcv(
 
     logger.info(f"Loaded {len(df)} candles for {symbol} {timeframe}")
     return df
+
+
+async def get_ohlcv_async(
+    symbol: str,
+    timeframe: str,
+    start: Optional[Union[str, datetime]] = None,
+    end: Optional[Union[str, datetime]] = None,
+    exchange: str = "binance",
+    data_dir: Optional[Path] = None,
+    use_cache: bool = True,
+) -> pd.DataFrame:
+    """
+    Async wrapper for get_ohlcv to prevent blocking the event loop.
+    Crucial for MFT operations where the main loop must handle Websockets.
+    """
+    return await asyncio.to_thread(
+        get_ohlcv,
+        symbol=symbol,
+        timeframe=timeframe,
+        start=start,
+        end=end,
+        exchange=exchange,
+        data_dir=data_dir,
+        use_cache=use_cache
+    )
 
 
 def load_ohlcv_chunked(

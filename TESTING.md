@@ -1,6 +1,10 @@
-# Testing Guide / Руководство по тестированию
+# 🧪 Testing Guide - Stoic Citadel Trading Bot
 
-## Quick Start / Быстрый старт
+Complete guide to running and understanding the test suite.
+
+---
+
+## 📋 Quick Start / Быстрый старт
 
 ```bash
 # 1. Activate virtual environment / Активировать виртуальное окружение
@@ -19,32 +23,50 @@ pytest tests/ -v --cov=src --cov-report=html
 
 ---
 
-## Test Categories / Категории тестов
+## 🎯 Critical Tests (Must Pass!) / Критические тесты
 
-### 1. Unit Tests (174 tests) / Юнит-тесты
+### 1. Data Leakage Test (CRITICAL!)
+**Why:** Prevents "too good to be true" backtests that fail in production.
+
+```bash
+pytest tests/test_ml/test_data_leakage.py::TestFeatureLeakage::test_vwap_fixed_no_leakage -v
+```
+
+---
+
+### 2. Race Condition Test (CRITICAL!)
+**Why:** Prevents order state corruption in production.
+
+```bash
+pytest tests/test_order_manager/test_async_executor.py::TestRaceConditions::test_order_fills_during_cancel_attempt -v
+```
+
+---
+
+### 3. Triple Barrier Correctness (CRITICAL!)
+**Why:** Ensures ML labels are correct (garbage labels = garbage model).
+
+```bash
+pytest tests/test_ml/test_triple_barrier.py::TestTripleBarrierBasic -v
+```
+
+---
+
+## 📊 Test Categories / Категории тестов
+
+### Unit Tests / Юнит-тесты
 
 ```bash
 # All unit tests / Все юнит-тесты
 pytest tests/ -v
 
 # By module / По модулям:
-pytest tests/test_risk/ -v           # Risk management (15 tests)
-pytest tests/test_ml/ -v             # ML Pipeline (42 tests)
-pytest tests/test_strategies/ -v     # Trading strategies (50 tests)
-pytest tests/test_monitoring/ -v     # Monitoring (20 tests)
+pytest tests/test_risk/ -v           # Risk management
+pytest tests/test_ml/ -v             # ML Pipeline
+pytest tests/test_strategies/ -v     # Trading strategies
 ```
 
-### 2. Fast Tests Only / Только быстрые тесты
-
-```bash
-# Skip slow tests / Пропустить медленные тесты
-pytest tests/ -v -m "not slow"
-
-# Only fast tests under 1 second / Только быстрые < 1 сек
-pytest tests/ -v --timeout=1
-```
-
-### 3. Integration Tests / Интеграционные тесты
+### Integration Tests / Интеграционные тесты
 
 ```bash
 # Test strategy with real data / Тест стратегии с реальными данными
@@ -53,244 +75,39 @@ freqtrade backtesting --strategy StoicEnsembleStrategy --timeframe 5m --timerang
 
 ---
 
-## Testing Workflow / Рабочий процесс тестирования
+## 🔬 Advanced Testing / Продвинутое тестирование
 
-### Step 1: Run Unit Tests / Шаг 1: Юнит-тесты
-
+### Run with Coverage
 ```bash
-pytest tests/ -v
+# Generate HTML coverage report
+pytest tests/ --cov=src --cov-report=html
 ```
 
-**Expected output / Ожидаемый результат:**
-```
-=================== 174 passed in 45.32s ===================
-```
+**Target Coverage:** > 80%
 
-### Step 2: Check Coverage / Шаг 2: Проверка покрытия
-
-```bash
-pytest tests/ --cov=src --cov-report=term-missing
-```
-
-**Target coverage / Целевое покрытие:** >80%
-
-### Step 3: Backtest Strategy / Шаг 3: Бэктест стратегии
-
-```bash
-# Basic backtest / Базовый бэктест
-freqtrade backtesting \
-    --config user_data/config/config_production.json \
-    --strategy StoicEnsembleStrategy \
-    --timeframe 5m \
-    --timerange 20240101-20240601
-
-# With detailed stats / С детальной статистикой
-freqtrade backtesting \
-    --config user_data/config/config_production.json \
-    --strategy StoicEnsembleStrategy \
-    --timeframe 5m \
-    --timerange 20240101-20240601 \
-    --export trades
-```
-
-### Step 4: Walk-Forward Analysis / Шаг 4: Walk-Forward анализ
-
-**Критически важно для ML-стратегий!**
-
-```bash
-# Month 1: Train on Jan, Test on Feb
-freqtrade backtesting --strategy StoicEnsembleStrategy --timerange 20240101-20240131 --export trades
-freqtrade backtesting --strategy StoicEnsembleStrategy --timerange 20240201-20240229 --export trades
-
-# Month 2: Train on Feb, Test on Mar
-freqtrade backtesting --strategy StoicEnsembleStrategy --timerange 20240201-20240229 --export trades
-freqtrade backtesting --strategy StoicEnsembleStrategy --timerange 20240301-20240331 --export trades
-
-# ... repeat for all months
-```
-
-### Step 5: Stress Testing / Шаг 5: Стресс-тестирование
-
-```bash
-# Test with high slippage / Тест с высоким проскальзыванием
-freqtrade backtesting \
-    --strategy StoicEnsembleStrategy \
-    --timerange 20240101-20240601 \
-    --fee 0.002  # 0.2% fees (2x normal)
-```
-
----
-
-## Key Test Files / Ключевые тестовые файлы
-
-| File | Tests | Description |
-|------|-------|-------------|
-| `tests/test_ml/test_feature_engineering.py` | 15 | Feature generation |
-| `tests/test_ml/test_model_trainer.py` | 12 | Model training |
-| `tests/test_ml/test_model_registry.py` | 8 | Model versioning |
-| `tests/test_risk/test_circuit_breaker.py` | 10 | Circuit breaker |
-| `tests/test_risk/test_correlation.py` | 5 | Correlation checks |
-| `tests/test_strategies/test_stoic_ensemble.py` | 25 | Main strategy |
-| `tests/test_monitoring/test_trading_metrics.py` | 12 | Prometheus metrics |
-
----
-
-## Common Issues / Частые проблемы
-
-### Issue 1: ModuleNotFoundError
-
-```
-ModuleNotFoundError: No module named 'sklearn'
-```
-
-**Solution / Решение:**
-```bash
-pip install scikit-learn>=1.3.0
-```
-
-### Issue 2: Import errors in tests
-
-```
-ModuleNotFoundError: No module named 'src'
-```
-
-**Solution / Решение:**
-```bash
-# Add project root to PYTHONPATH
-$env:PYTHONPATH = "C:\mft-algotrade-bot"
-pytest tests/ -v
-```
-
-### Issue 3: Async test warnings
-
-```
-PytestUnraisableExceptionWarning: asyncio...
-```
-
-**Solution / Решение:**
-```bash
-pip install pytest-asyncio>=0.23.0
-```
-
----
-
-## Performance Benchmarks / Бенчмарки производительности
-
-### Expected Test Times / Ожидаемое время
-
-| Test Suite | Expected Time |
-|------------|---------------|
-| All tests | ~45-60 seconds |
-| ML tests only | ~20 seconds |
-| Strategy tests | ~15 seconds |
-| Risk tests | ~5 seconds |
-
-### Backtest Benchmarks / Бенчмарки бэктеста
-
-| Timerange | Expected Time |
-|-----------|---------------|
-| 1 month | ~30 seconds |
-| 6 months | ~3 minutes |
-| 1 year | ~6 minutes |
-
----
-
-## Validation Checklist / Чек-лист валидации
-
-Before deploying to production / Перед продакшеном:
-
-- [ ] All 174 unit tests pass
-- [ ] Coverage > 80%
-- [ ] Backtest shows positive Sharpe Ratio
-- [ ] Walk-forward analysis profitable for >50% of periods
-- [ ] Stress test with 0.2% fees still profitable
-- [ ] Circuit breaker triggers correctly at -5% drawdown
-- [ ] ML model accuracy > 52% on test set
-
----
-
-## Load Testing with Locust / Нагрузочное тестирование с Locust
-
-Для тестирования производительности API эндпоинтов используется Locust.
-
-### Установка / Installation
+### Load Testing with Locust / Нагрузочное тестирование
 ```bash
 pip install locust
-```
-
-### Быстрый старт / Quick Start
-```bash
-# Запустить Locust с указанием хоста
 locust -f tests/load_test.py --host http://localhost:8080
-
-# Открыть веб-интерфейс: http://localhost:8089
-# Указать количество пользователей и скорость создания
 ```
 
-### Примеры сценариев / Example Scenarios
-
-```bash
-# 100 пользователей, скорость создания 10 в секунду
-locust -f tests/load_test.py --host http://localhost:8080 --users 100 --spawn-rate 10
-
-# Запуск на 1 час
-locust -f tests/load_test.py --host http://localhost:8080 --users 50 --spawn-rate 5 --run-time 1h
-
-# Без веб-интерфейса (headless)
-locust -f tests/load_test.py --host http://localhost:8080 --users 100 --spawn-rate 10 --headless
-```
-
-### Тестируемые эндпоинты / Tested Endpoints
-
-1. **GET /api/v1/signal** - ML inference для генерации сигналов
-2. **POST /api/v1/orders** - размещение ордеров
-3. **GET /health** - проверка здоровья системы
-
-### Цели производительности / Performance Targets
-
-- Время отклика < 100 мс для 95% запросов
-- Обработка > 100 RPS (запросов в секунду)
-- Устойчивость к нагрузке 1000+ одновременных пользователей
-
-## Docker Testing / Тестирование в Docker
-
+### Docker Testing / Тестирование в Docker
 ```bash
 # Build and run tests in container
-docker-compose build
-docker-compose run --rm freqtrade pytest tests/ -v
-
-# Run backtest in container
-docker-compose run --rm freqtrade backtesting \
-    --strategy StoicEnsembleStrategy \
-    --timerange 20240101-20240301
+docker-compose -f deploy/docker-compose.test.yml build
+docker-compose -f deploy/docker-compose.test.yml run --rm freqtrade pytest tests/ -v
 ```
 
 ---
 
-## CI/CD Integration / CI/CD интеграция
+## 🎯 Pre-Deployment Checklist / Чек-лист перед деплоем
 
-### GitHub Actions Example
-
-```yaml
-# .github/workflows/test.yml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install ".[dev]"
-      - run: pytest tests/ -v --cov=src
-```
+- [ ] All unit tests pass / Все юнит-тесты пройдены
+- [ ] Coverage > 80% / Покрытие > 80%
+- [ ] Backtest shows positive Sharpe Ratio / Бэктест показывает положительный коэф. Шарпа
+- [ ] Circuit breaker triggers correctly / Circuit breaker срабатывает корректно
+- [ ] ML model accuracy > 52% on test set / Точность ML модели > 52%
 
 ---
 
-## Need Help? / Нужна помощь?
-
-1. Check logs: `user_data/logs/freqtrade.log`
-2. Run with debug: `pytest tests/ -v -s --tb=long`
-3. Open issue: https://github.com/kandibobe/mft-algotrade-bot/issues
+**Happy Testing! 🧪**

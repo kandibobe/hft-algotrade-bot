@@ -21,7 +21,15 @@ services:
       --logfile /freqtrade/user_data/logs/freqtrade.log
       --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
       --config /freqtrade/user_data/config/config_production.json
-      --strategy StoicEnsembleStrategyV2
+      --strategy StoicEnsembleStrategyV5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
     networks:
       - stoic_network
     env_file:

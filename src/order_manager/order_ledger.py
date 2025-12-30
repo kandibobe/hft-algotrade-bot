@@ -125,10 +125,7 @@ class OrderLedger:
                     status TEXT NOT NULL,
                     created_at TIMESTAMP NOT NULL,
                     updated_at TIMESTAMP NOT NULL,
-                    order_data TEXT NOT NULL,
-                    INDEX idx_status (status),
-                    INDEX idx_symbol (symbol),
-                    INDEX idx_created_at (created_at)
+                    order_data TEXT NOT NULL
                 )
             """
             )
@@ -146,6 +143,11 @@ class OrderLedger:
                 )
             """
             )
+
+            # Create indexes separately for compatibility
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON orders (status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_symbol ON orders (symbol)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON orders (created_at)")
 
         logger.info("Database tables created/verified")
 

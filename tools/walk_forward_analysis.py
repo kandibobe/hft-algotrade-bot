@@ -244,32 +244,51 @@ class WalkForwardAnalysis:
         """
         logger.info(f"Training {model_type} model...")
         logger.info(f"Training samples: {len(X_train)}, Features: {X_train.shape[1]}")
-        logger.info(f"Class distribution: {y_train.value_counts().to_dict()}")
+        if hasattr(y_train, 'value_counts'):
+            logger.info(f"Class distribution: {y_train.value_counts().to_dict()}")
+        else:
+            unique, counts = np.unique(y_train, return_counts=True)
+            logger.info(f"Class distribution: {dict(zip(unique, counts))}")
         
         # Calculate class weights if needed
         class_weight = None
-        if use_class_weight and len(y_train.unique()) > 1:
-            class_counts = y_train.value_counts()
-            total = len(y_train)
-            class_weight = {
-                0: total / (2 * class_counts.get(0, 1)),
-                1: total / (2 * class_counts.get(1, 1))
-            }
+        if hasattr(y_train, 'unique'):
+            unique_classes = sorted(y_train.unique())
+        else:
+            unique_classes = sorted(np.unique(y_train))
+        
+        if use_class_weight and len(unique_classes) > 1:
+            from sklearn.utils.class_weight import compute_class_weight
+            weights = compute_class_weight(
+                class_weight='balanced',
+                classes=np.array(unique_classes),
+                y=y_train
+            )
+            class_weight = dict(zip(unique_classes, weights))
             logger.info(f"Class weights: {class_weight}")
         
         if model_type == "xgboost" and XGB_AVAILABLE:
             # XGBoost model
-            scale_pos_weight = class_weight[1] / class_weight[0] if class_weight else 1
+            # For multiclass, we can't use scale_pos_weight in the same way
+            # We'll use sample weights during fit instead if needed, or rely on other params
+            # For binary (0, 1), we can use scale_pos_weight
+            scale_pos_weight = 1
+            if len(unique_classes) == 2 and 0 in unique_classes and 1 in unique_classes:
+                 scale_pos_weight = class_weight[1] / class_weight[0] if class_weight else 1
+
             model = xgb.XGBClassifier(
-                n_estimators=100,
-                max_depth=6,
-                learning_rate=0.1,
-                subsample=0.8,
-                colsample_bytree=0.8,
+                n_estimators=200,
+                max_depth=4,  # Reduced from 6 to prevent overfitting
+                learning_rate=0.05,  # Slower learning for better generalization
+                subsample=0.7,
+                colsample_bytree=0.7,
+                reg_alpha=0.1,  # L1 regularization
+                reg_lambda=1.0,  # L2 regularization
                 random_state=42,
                 scale_pos_weight=scale_pos_weight,
-                eval_metric='logloss',
-                use_label_encoder=False
+                eval_metric='logloss' if len(unique_classes) == 2 else 'mlogloss',
+                use_label_encoder=False,
+                n_jobs=-1
             )
         elif model_type == "lightgbm" and LGB_AVAILABLE:
             # LightGBM model
@@ -478,27 +497,56 @@ class WalkForwardAnalysis:
                     "success": False,
                     "error": "Insufficient data"
                 }
+
+            # Map labels to 0, 1, 2 for XGBoost/LightGBM compatibility
+            # Assumes labels are -1, 0, 1
+            y_train_mapped = (y_train + 1).astype(int)
+            
+            # XGBoost requires classes to be [0, 1, 2...], so if we have gaps (e.g. [0, 2]), we must encode
+            from sklearn.preprocessing import LabelEncoder
+            le = LabelEncoder()
+            y_train_encoded = le.fit_transform(y_train_mapped)
             
             # 3. Train model
             # Note: Features are already scaled by FeatureEngineer
             model = self.train_model(
                 X_train, 
-                y_train, 
+                y_train_encoded, 
                 model_type=model_type,
                 use_class_weight=True
             )
             
             # 4. Evaluate model
             logger.info("Evaluating model...")
-            y_pred = model.predict(X_test)
+            y_pred_encoded = model.predict(X_test)
+            y_pred_mapped = le.inverse_transform(y_pred_encoded)
+            y_pred = y_pred_mapped - 1  # Map back to -1, 0, 1
             
             if hasattr(model, 'predict_proba'):
-                y_pred_proba = model.predict_proba(X_test)[:, 1]
+                # Handle probability prediction with potentially missing classes
+                probs = model.predict_proba(X_test)
+                
+                # We need probability of the "Long" class (label 1 in original, 2 in mapped)
+                # Check if class 2 exists in the encoder
+                if 2 in le.classes_:
+                    # Find index of class 2 in the transformed classes
+                    # le.transform([2])[0] gives the encoded label for 2
+                    encoded_long_label = le.transform([2])[0]
+                    # Find where this encoded label is in model.classes_ (usually it matches index if sorted)
+                    # XGBoost classes are 0..K-1
+                    if encoded_long_label < probs.shape[1]:
+                        y_pred_proba = probs[:, encoded_long_label]
+                    else:
+                        y_pred_proba = np.zeros(len(y_pred))
+                else:
+                    # Class 2 (Long) was not in training data, so probability is 0
+                    y_pred_proba = np.zeros(len(y_pred))
             else:
                 y_pred_proba = None
             
             accuracy = accuracy_score(y_test, y_pred)
-            f1 = f1_score(y_test, y_pred, zero_division=0)
+            # Use 'weighted' average to handle multiclass labels (-1, 0, 1)
+            f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
             
             # 5. Simulate trading
             logger.info("Simulating trading...")

@@ -551,12 +551,21 @@ class ModelRegistry:
             logger.error(f"Failed to load registry: {e}")
 
     def _save_registry(self):
-        """Save registry to disk."""
+        """Save registry to disk atomically."""
         data = {}
         for model_name, versions in self.models.items():
             data[model_name] = [v.to_dict() for v in versions]
 
-        with open(self.registry_file, "w") as f:
-            json.dump(data, f, indent=2)
-
-        logger.debug(f"Saved registry to {self.registry_file}")
+        # Atomic write pattern to prevent corruption
+        temp_file = self.registry_file.with_suffix(".tmp")
+        try:
+            with open(temp_file, "w") as f:
+                json.dump(data, f, indent=2)
+            
+            # Atomic rename (replace)
+            temp_file.replace(self.registry_file)
+            logger.debug(f"Saved registry to {self.registry_file}")
+        except Exception as e:
+            logger.error(f"Failed to save registry: {e}")
+            if temp_file.exists():
+                temp_file.unlink()

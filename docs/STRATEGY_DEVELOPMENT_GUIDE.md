@@ -31,7 +31,7 @@ command: >
   --logfile /freqtrade/user_data/logs/freqtrade.log
   --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
   --config /freqtrade/user_data/config/config_production.json
-  --strategy StoicCitadelV2  # ⬅️ ЗДЕСЬ ИЗМЕНИТЕ
+  --strategy StoicEnsembleStrategyV5  # ⬅️ ЗДЕСЬ ИЗМЕНИТЕ
 ```
 
 #### 3. Перезапустите бота:
@@ -661,6 +661,46 @@ with open('user_data/backtest_results/.../trades.json') as f:
    RSI_OVERSOLD_THRESHOLD = 30
    if dataframe['rsi'] < RSI_OVERSOLD_THRESHOLD:
    ```
+
+---
+
+## Архитектура v2 (Unified)
+
+Проект перешел на новую архитектуру (v2.4.0+), объединяющую Freqtrade с кастомными ML/Risk модулями.
+
+### Ключевые компоненты:
+
+1.  **`src.strategies.core_logic.StoicLogic`**:
+    *   Центральная логика принятия решений (Signal Generation).
+    *   Чистые функции, легко тестируемые.
+    *   Используется как в Research, так и в Production.
+
+2.  **`src.strategies.risk_mixin.StoicRiskMixin`**:
+    *   Подключает продвинутый Risk Manager к любой стратегии.
+    *   Обеспечивает Circuit Breaker, Liquidation Guard, Correlation Checks.
+    *   Использование: `class MyStrategy(StoicRiskMixin, IStrategy):`
+
+3.  **`src.ml.model_loader`**:
+    *   Загружает ML модели из реестра (`user_data/models/registry`).
+    *   Обеспечивает консистентность между обучением и торговлей.
+
+### Пример современной стратегии:
+
+```python
+from freqtrade.strategy import IStrategy
+from src.strategies.risk_mixin import StoicRiskMixin
+from src.strategies.core_logic import StoicLogic
+
+class MyStrategy(StoicRiskMixin, IStrategy):
+    INTERFACE_VERSION = 3
+    # ... параметры ...
+
+    def populate_indicators(self, dataframe, metadata):
+        return StoicLogic.populate_indicators(dataframe)
+
+    def populate_entry_trend(self, dataframe, metadata):
+        return StoicLogic.populate_entry_exit_signals(dataframe)
+```
 
 ---
 

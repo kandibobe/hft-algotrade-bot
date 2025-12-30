@@ -11,7 +11,7 @@ Features:
 Philosophy: "Don't fight the regime. Surf the waves, fade the chop, sit out the noise."
 
 Author: Stoic Citadel Team
-Version: 5.1.0 (Refactored Logic)
+Version: 5.2.0 (Regime Refactor)
 """
 
 import sys
@@ -33,18 +33,15 @@ from freqtrade.persistence import Trade
 
 # Imports
 try:
-    from src.utils.indicators import (
-        calculate_ema, calculate_rsi, calculate_macd,
-        calculate_atr, calculate_bollinger_bands,
-        calculate_stochastic, calculate_adx, calculate_obv
-    )
-    from src.utils.regime_detection import calculate_regime_score, get_regime_parameters
+    from src.utils.regime_detection import calculate_regime, get_market_regime
     # We still use V4's ML integration helper functions if we want to keep ML
-    from user_data.strategies.StoicEnsembleStrategyV4 import get_cached_model_and_fe
+    from src.ml.model_loader import get_production_model
     # Import Risk Mixin
-    from user_data.strategies.StoicRiskMixin import StoicRiskMixin
+    from src.strategies.risk_mixin import StoicRiskMixin
     # Import Core Logic
     from src.strategies.core_logic import StoicLogic
+    # Import Hybrid Connector
+    from src.strategies.hybrid_connector import HybridConnectorMixin
     USE_CUSTOM_MODULES = True
 except ImportError as e:
     USE_CUSTOM_MODULES = False
@@ -53,18 +50,16 @@ except ImportError as e:
     # Dummy mixin if import fails
     class StoicRiskMixin: pass
     class StoicLogic: pass
+    class HybridConnectorMixin: pass
 
 logger = logging.getLogger(__name__)
 
-class StoicEnsembleStrategyV5(IStrategy, StoicRiskMixin):
+class StoicEnsembleStrategyV5(HybridConnectorMixin, StoicRiskMixin, IStrategy):
     INTERFACE_VERSION = 3
 
     # Hyperparameters
     # Buy Params
     buy_rsi = IntParameter(20, 40, default=30, space="buy")
-    buy_adx = IntParameter(15, 30, default=20, space="buy")
-    buy_hurst_min_trend = DecimalParameter(0.55, 0.65, default=0.60, space="buy")
-    buy_hurst_max_meanrev = DecimalParameter(0.35, 0.45, default=0.40, space="buy")
     
     # ML
     ml_weight = DecimalParameter(0.3, 0.7, default=0.5, space="buy")
@@ -97,84 +92,75 @@ class StoicEnsembleStrategyV5(IStrategy, StoicRiskMixin):
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """Calculate indicators."""
         try:
-            # 1. Standard Indicators
             if USE_CUSTOM_MODULES:
-                dataframe = self._populate_indicators_custom(dataframe)
-            else:
-                # Fallback implementation omitted for brevity in V5 proof-of-concept
-                pass
-
-            # 2. ML Predictions (Reuse V4 logic)
-            dataframe = self._calculate_ml_predictions(dataframe, metadata)
-
-            # 3. Regime Detection (V5)
-            # This adds 'volatility_rank', 'hurst', 'risk_factor'
-            if USE_CUSTOM_MODULES:
-                regime_df = calculate_regime_score(
+                # 1. Standard Indicators (ATR, RSI, BB, etc.)
+                dataframe = StoicLogic.populate_indicators(dataframe)
+                
+                # 2. Regime Metrics (Z-Score, Hurst, Enum)
+                # Calculates over entire history
+                regime_df = calculate_regime(
                     dataframe['high'], dataframe['low'], dataframe['close'], dataframe['volume']
                 )
-                # Merge safely
-                for col in regime_df.columns:
-                    dataframe[col] = regime_df[col]
+                
+                # Merge Regime Data
+                dataframe['regime'] = regime_df['regime']
+                dataframe['vol_zscore'] = regime_df['vol_zscore']
+                dataframe['hurst'] = regime_df['hurst']
+                dataframe['adx'] = regime_df['adx']
+                
+                # 3. ML Predictions
+                dataframe = self._calculate_ml_predictions(dataframe, metadata)
 
+        except ImportError as e:
+            logger.critical(f"Critical dependency missing in populate_indicators: {e}")
+        except KeyError as e:
+            logger.error(f"Missing column in populate_indicators: {e}")
         except Exception as e:
-            logger.error(f"Error in indicators: {e}")
+            logger.exception(f"Unexpected error in populate_indicators: {e}")
             
-        return dataframe
-
-    def _populate_indicators_custom(self, dataframe: DataFrame) -> DataFrame:
-        # Basic needed for logic
-        dataframe['ema_50'] = calculate_ema(dataframe['close'], 50)
-        dataframe['ema_200'] = calculate_ema(dataframe['close'], 200)
-        dataframe['rsi'] = calculate_rsi(dataframe['close'], 14)
-        
-        bb = calculate_bollinger_bands(dataframe['close'], 20, 2.0)
-        dataframe['bb_lower'] = bb['lower']
-        dataframe['bb_upper'] = bb['upper']
-        dataframe['bb_width'] = bb['width']
-        
-        dataframe['atr'] = calculate_atr(dataframe['high'], dataframe['low'], dataframe['close'], 14)
-        
         return dataframe
 
     def _calculate_ml_predictions(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """Reuse V4 ML logic."""
-        # Simplified copy of V4 ML logic
+        """Calculate predictions using src.ml pipeline."""
         try:
-            from user_data.strategies.StoicEnsembleStrategyV4 import get_cached_model_and_fe
-            # We can instantiate V4 just to use its helper if needed, but methods are instance methods.
-            # Instead, we reimplement simpler version calling the global helper.
             pair = metadata['pair']
-            model, fe = get_cached_model_and_fe(pair, Path("."))
+            model, fe, feature_names = get_production_model(pair)
             
             if model and fe:
+                # Feature Engineering
                 df_fe = dataframe.copy()
-                if 'date' in df_fe.columns: df_fe.set_index('date', inplace=True)
+                if 'date' in df_fe.columns and not isinstance(df_fe.index, pd.DatetimeIndex):
+                    df_fe.set_index('date', inplace=True)
                 
-                # Use transform (which assumes fit was done on train data)
+                # Transform (generate features + scale)
+                # Note: This calls the refactored _apply_aggressive_cleaning which imputes NaNs
                 X = fe.transform(df_fe)
                 
-                # Align features
-                if hasattr(model, 'feature_names_in_'):
-                    # Ensure all features exist, fill with 0 only if strictly necessary
-                    # but better to let it fail or warn if features missing
-                    X = X.reindex(columns=model.feature_names_in_, fill_value=0)
-                
+                # Predict
                 if hasattr(model, 'predict_proba'):
-                    preds = model.predict_proba(X)[:, 1] # Class 1
+                    preds = model.predict_proba(X)[:, 1] # Probability of Class 1 (Buy/Long)
                 else:
                     preds = model.predict(X)
                 
-                # Map back
-                # Handle alignment if dataframe length != preds length (e.g. startup candles dropped)
-                # But here we pass full dataframe to FE, so lengths should match roughly
-                # However, rolling windows in FE might drop initial rows
-                if len(preds) < len(dataframe):
-                    # Pad with 0.5 at the beginning
-                    padding = np.full(len(dataframe) - len(preds), 0.5)
-                    preds = np.concatenate([padding, preds])
+                # Align predictions
+                pred_series = pd.Series(preds, index=X.index)
                 
-                dataframe['ml_prediction'] = preds
+                if isinstance(dataframe.index, pd.DatetimeIndex):
+                    aligned_preds = pred_series.reindex(dataframe.index, fill_value=0.5)
+                else:
+                    if 'date' in dataframe.columns:
+                        temp_df = dataframe.set_index('date')
+                        aligned_preds = pred_series.reindex(temp_df.index, fill_value=0.5)
+                        aligned_preds = aligned_preds.values
+                    else:
+                        if len(preds) < len(dataframe):
+                            padding = np.full(len(dataframe) - len(preds), 0.5)
+                            aligned_preds = np.concatenate([padding, preds])
+                        else:
+                            aligned_preds = preds[-len(dataframe):]
+
+                dataframe['ml_prediction'] = aligned_preds
+                
             else:
                 dataframe['ml_prediction'] = 0.5
                 
@@ -189,18 +175,16 @@ class StoicEnsembleStrategyV5(IStrategy, StoicRiskMixin):
         Regime-Conditional Entry Logic using Core Logic Layer.
         """
         if USE_CUSTOM_MODULES:
-            # Delegate to Core Logic
+            # Delegate to Core Logic which uses Regime Matrix
             df_signals = StoicLogic.populate_entry_exit_signals(
                 dataframe, 
                 buy_threshold=float(self.entry_prob_threshold.value),
                 sell_rsi=int(self.sell_rsi.value)
             )
             
-            # Map back signals
             dataframe['enter_long'] = df_signals['enter_long']
             
         else:
-            # Fallback (should not happen in prod)
             dataframe['enter_long'] = 0
             
         return dataframe
@@ -209,8 +193,6 @@ class StoicEnsembleStrategyV5(IStrategy, StoicRiskMixin):
         """Regime-Conditional Exits using Core Logic Layer."""
         if USE_CUSTOM_MODULES:
             # Delegate to Core Logic
-            # Note: We re-calculate signals here which is redundant but safe
-            # Optimization: could cache or merge in populate_entry_trend
             df_signals = StoicLogic.populate_entry_exit_signals(
                 dataframe, 
                 buy_threshold=float(self.entry_prob_threshold.value),
@@ -224,18 +206,40 @@ class StoicEnsembleStrategyV5(IStrategy, StoicRiskMixin):
         return dataframe
         
     def bot_start(self, **kwargs) -> None:
-        """Initialize Risk Manager."""
+        """Initialize Risk Manager, Config, and Hybrid Connector."""
         if USE_CUSTOM_MODULES:
-            super().bot_start(**kwargs)
-            logger.info("StoicRiskMixin initialized from Strategy")
+            try:
+                from src.config.manager import ConfigurationManager
+                ConfigurationManager.initialize()
+                
+                # Initialize parent classes
+                super().bot_start(**kwargs)
+                
+                # Initialize Hybrid Connector
+                # We need to know which pairs to monitor. 
+                # Freqtrade doesn't give us the pairlist easily here, so we use config
+                config = ConfigurationManager.get_config()
+                pairs = config.pairs if hasattr(config, 'pairs') else ["BTC/USDT", "ETH/USDT"]
+                
+                self.initialize_hybrid_connector(pairs=pairs)
+                
+                logger.info("StoicRiskMixin, Configuration, and HybridConnector initialized")
+            except Exception as e:
+                logger.critical(f"Failed to initialize strategy components: {e}")
+                raise
 
     def confirm_trade_entry(self, pair: str, order_type: str, amount: float, rate: float, 
                            time_in_force: str, current_time: datetime, entry_tag: Optional[str], 
                            side: str, **kwargs) -> bool:
         """
-        Override to use Risk Mixin validation.
+        Override to use Risk Mixin validation AND Hybrid Connector safety checks.
         """
         if USE_CUSTOM_MODULES:
+            # 1. Check Market Safety (Real-time MFT checks)
+            if not self.check_market_safety(pair, side):
+                return False
+                
+            # 2. Check Risk Limits (Portfolio Risk)
             return super().confirm_trade_entry(pair, order_type, amount, rate, time_in_force, 
                                              current_time, entry_tag, side, **kwargs)
         return True
@@ -245,31 +249,36 @@ class StoicEnsembleStrategyV5(IStrategy, StoicRiskMixin):
                            max_stake: float, leverage: float, entry_tag: Optional[str],
                            side: str, **kwargs) -> float:
         """
-        Delegates sizing to StoicRiskMixin -> RiskManager.
+        Delegates sizing to StoicRiskMixin (Inverse Volatility Sizing).
         """
         if USE_CUSTOM_MODULES and self.risk_manager:
             return super().custom_stake_amount(pair, current_time, current_rate, proposed_stake,
                                              min_stake, max_stake, leverage, entry_tag, side, **kwargs)
         
-        # Fallback
         return proposed_stake
 
     def custom_stoploss(self, pair: str, trade: Trade, current_time: datetime,
                        current_rate: float, current_profit: float, **kwargs) -> float:
         """
-        Volatility-Adjusted Stop Loss.
+        Volatility-Adjusted Stop Loss using Z-Score from Regime.
         """
         dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
         last_candle = dataframe.iloc[-1].squeeze()
         
         # Base ATR stop
         atr = last_candle.get('atr', current_rate * 0.02)
-        vol_rank = last_candle.get('volatility_rank', 0.5)
         
-        # Dynamic Multiplier
-        mult = 2.0 + vol_rank  # Maps 0.0->2.0, 1.0->3.0
+        # Adjust multiplier based on Regime
+        # If High Vol (Z > 1), widen stop to avoid noise
+        vol_z = last_candle.get('vol_zscore', 0)
         
-        stop_dist = atr * mult
+        base_mult = 2.0
+        if vol_z > 1.0:
+            base_mult = 3.0
+        elif vol_z < -1.0:
+            base_mult = 1.5
+            
+        stop_dist = atr * base_mult
         stop_pct = stop_dist / current_rate
         
         return -stop_pct

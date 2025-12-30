@@ -41,14 +41,17 @@ def sample_ohlcv():
     # Create timestamps
     dates = pd.date_range('2024-01-01', periods=n, freq='5min')
     
-    return pd.DataFrame({
+    df = pd.DataFrame({
         'date': dates,
+        'timestamp': dates, # Add timestamp column for labeling
         'open': open_,
         'high': high,
         'low': low,
         'close': close,
         'volume': volume
     })
+    df.set_index('date', inplace=True)
+    return df
 
 
 @pytest.fixture
@@ -373,9 +376,15 @@ def stoic_strategy(minimal_config):
     """
     import sys
     import os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../user_data/strategies"))
+    # Add root and strategies dir to path
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../strategies"))
     
-    from StoicEnsembleStrategy import StoicEnsembleStrategy
+    try:
+        from StoicEnsembleStrategy import StoicEnsembleStrategy
+    except ImportError:
+        # Fallback to V5 if standard not found
+        from StoicEnsembleStrategyV5 import StoicEnsembleStrategyV5 as StoicEnsembleStrategy
     
     return StoicEnsembleStrategy(minimal_config)
 
@@ -387,8 +396,12 @@ def stoic_strategy_v2(minimal_config):
     """
     import sys
     import os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../user_data/strategies"))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../strategies"))
     
-    from StoicEnsembleStrategyV2 import StoicEnsembleStrategyV2
+    try:
+        from StoicEnsembleStrategyV2 import StoicEnsembleStrategyV2
+    except ImportError:
+        from StoicEnsembleStrategyV5 import StoicEnsembleStrategyV5 as StoicEnsembleStrategyV2
     
     return StoicEnsembleStrategyV2(minimal_config)

@@ -1,0 +1,92 @@
+"""
+Database Manager
+================
+
+Centralizes database connections and session management.
+Uses Unified Configuration for connection details.
+"""
+
+import logging
+import os
+from typing import Optional, Any
+from sqlalchemy import create_engine, pool
+from sqlalchemy.orm import sessionmaker, Session, declarative_base
+from contextlib import contextmanager
+
+from src.config.manager import config
+
+logger = logging.getLogger(__name__)
+
+Base = declarative_base()
+
+class DatabaseManager:
+    _engine: Optional[Any] = None
+    _session_factory: Optional[sessionmaker] = None
+
+    @classmethod
+    def get_engine(cls):
+        """Lazy initialization of SQLAlchemy engine."""
+        if cls._engine is None:
+            cfg = config()
+            # Default to SQLite for local development if PG not configured
+            db_url = os.getenv('DATABASE_URL')
+            
+            if not db_url:
+                # Construct from env vars or use SQLite
+                user = os.getenv('POSTGRES_USER')
+                if user:
+                    password = os.getenv('POSTGRES_PASSWORD', '')
+                    host = os.getenv('POSTGRES_HOST', 'localhost')
+                    port = os.getenv('POSTGRES_PORT', '5432')
+                    db_name = os.getenv('POSTGRES_DB', 'stoic_citadel')
+                    db_url = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+                else:
+                    db_url = "sqlite:///user_data/stoic_citadel.db"
+                    logger.info(f"Using SQLite database: {db_url}")
+
+            logger.info(f"Initializing database engine: {db_url.split('@')[-1]}") # Log without credentials
+            
+            cls._engine = create_engine(
+                db_url,
+                poolclass=pool.QueuePool if db_url.startswith("postgresql") else pool.StaticPool,
+                pool_size=10 if db_url.startswith("postgresql") else 1,
+                max_overflow=20 if db_url.startswith("postgresql") else 0,
+                pool_pre_ping=True
+            )
+            
+        return cls._engine
+
+    @classmethod
+    def get_session_factory(cls) -> sessionmaker:
+        """Lazy initialization of session factory."""
+        if cls._session_factory is None:
+            engine = cls.get_engine()
+            cls._session_factory = sessionmaker(
+                bind=engine,
+                autocommit=False,
+                autoflush=False
+            )
+        return cls._session_factory
+
+    @classmethod
+    @contextmanager
+    def session(cls) -> Session:
+        """Context manager for database sessions."""
+        factory = cls.get_session_factory()
+        session = factory()
+        try:
+            yield session
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Database session error: {e}")
+            raise
+        finally:
+            session.close()
+
+    @classmethod
+    def init_db(cls):
+        """Create all tables."""
+        engine = cls.get_engine()
+        Base.metadata.create_all(engine)
+        logger.info("Database tables initialized.")

@@ -5,12 +5,25 @@ Stoic Citadel - Core Trading Logic
 Pure logic layer for trading decisions.
 Decoupled from Freqtrade to allow independent testing and simulation.
 Supports both scalar (unit test) and vectorized (backtest) operations.
+
+Refactored V6: Regime-Permission Matrix + Signal Persistence
 """
 
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, Union
 import pandas as pd
 import numpy as np
+import logging
+
+# Import indicators and regime
+from src.utils.indicators import (
+    calculate_ema, calculate_rsi, calculate_macd,
+    calculate_atr, calculate_bollinger_bands,
+    calculate_stochastic, calculate_adx, calculate_obv
+)
+from src.utils.regime_detection import calculate_regime, MarketRegime
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class TradeDecision:
@@ -22,77 +35,131 @@ class StoicLogic:
     """
     Encapsulates the core decision making logic.
     """
+
+    @staticmethod
+    def populate_indicators(dataframe: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate technical indicators required for the strategy.
+        """
+        # Basic needed for logic
+        dataframe['ema_50'] = calculate_ema(dataframe['close'], 50)
+        dataframe['ema_200'] = calculate_ema(dataframe['close'], 200)
+        dataframe['rsi'] = calculate_rsi(dataframe['close'], 14)
+        
+        bb = calculate_bollinger_bands(dataframe['close'], 20, 2.0)
+        dataframe['bb_lower'] = bb['lower']
+        dataframe['bb_upper'] = bb['upper']
+        dataframe['bb_width'] = bb['width']
+        
+        # Calculate Regime Indicators (if not already done by strategy)
+        # We need ATR for Regime Detection
+        # regime_detection.calculate_regime handles indicators internally
+        # but we might need to merge results back if strategy doesn't do it.
+        # For simplicity, we assume strategy calls calculate_regime and merges.
+        
+        return dataframe
     
     @staticmethod
     def populate_entry_exit_signals(dataframe: pd.DataFrame, 
                                   buy_threshold: float = 0.6,
-                                  sell_rsi: int = 75) -> pd.DataFrame:
+                                  sell_rsi: int = 75,
+                                  persistence_window: int = 3) -> pd.DataFrame:
         """
-        Vectorized signal generation.
+        Vectorized signal generation using Regime Permission Matrix.
+        
         Returns dataframe with 'enter_long' and 'exit_long' columns.
         """
         df = dataframe.copy()
         df['enter_long'] = 0
         df['exit_long'] = 0
         
-        # Ensure required columns exist
-        required = ['hurst', 'rsi', 'close', 'bb_lower', 'ema_200', 'ml_prediction', 'volume']
-        for col in required:
-            if col not in df.columns:
-                # If missing, we can't trade safely. Return empty signals.
-                return df
+        # Ensure Regime is calculated
+        if 'regime' not in df.columns:
+            # Fallback calculation (computationally expensive)
+            logger.warning("Regime column missing, calculating on the fly.")
+            regime_df = calculate_regime(df['high'], df['low'], df['close'], df['volume'])
+            df['regime'] = regime_df['regime']
+            df['vol_zscore'] = regime_df['vol_zscore']
 
-        # --- Entry Logic ---
+        # --- Signal Generators (Raw) ---
         
-        # 1. Random Walk Filter (Kill Zone: 0.45 < H < 0.55)
-        # We don't need to explicitly filter if we only select strictly > 0.6 or < 0.4
-        
-        # 2. Trending Regime (H > 0.6)
-        trend_cond = (
-            (df['hurst'] > 0.6) &
-            (df['close'] > df['ema_200']) &
-            (df['ml_prediction'] > buy_threshold) &
-            (df['volume'] > 0)
+        # 1. Trend Signal (Breakout/Momentum)
+        # Condition: Price > EMA200 AND ML > Threshold
+        raw_trend_signal = (
+            (df['close'] > df['ema_200']) & 
+            (df['ml_prediction'] > buy_threshold)
         )
         
-        # 3. Mean Reversion Regime (H < 0.4)
-        mean_rev_cond = (
-            (df['hurst'] < 0.4) &
+        # 2. Mean Reversion Signal (Dip Buy)
+        # Condition: RSI < 30 AND Price < BB Lower
+        raw_mean_rev_signal = (
             (df['rsi'] < 30) &
             (df['close'] <= df['bb_lower'])
         )
         
-        # Combine
-        df.loc[trend_cond | mean_rev_cond, 'enter_long'] = 1
+        # --- Signal Persistence (Glitch Filter) ---
+        # Signal must be true for N periods to be valid
+        # We use rolling min() on boolean (converted to int)
+        # If min is 1, then it was true for all N periods.
+        # FIX: Use threshold > 0.99 instead of == 1 to avoid float comparison issues
+        trend_persistent = raw_trend_signal.astype(int).rolling(persistence_window).min() > 0.99
+        mean_rev_persistent = raw_mean_rev_signal.astype(int).rolling(persistence_window).min() > 0.99
+        
+        # --- Regime Permission Matrix ---
+        
+        # 1. PUMP_DUMP (High Vol + Trend) -> ALLOW TREND, BAN MEAN REV
+        mask_pump = df['regime'] == MarketRegime.PUMP_DUMP.value
+        df.loc[mask_pump & trend_persistent, 'enter_long'] = 1
+        
+        # 2. GRIND (Low Vol + Trend) -> ALLOW TREND (Accumulate), BAN MEAN REV
+        mask_grind = df['regime'] == MarketRegime.GRIND.value
+        # In grind, we might be less strict on persistence or require smaller size
+        df.loc[mask_grind & trend_persistent, 'enter_long'] = 1
+        
+        # 3. VIOLENT_CHOP (High Vol + Range) -> ALLOW MEAN REV, BAN TREND
+        mask_violent = df['regime'] == MarketRegime.VIOLENT_CHOP.value
+        df.loc[mask_violent & mean_rev_persistent, 'enter_long'] = 1
+        
+        # 4. QUIET_CHOP (Low Vol + Range) -> STAY FLAT
+        # No assignments. Default is 0.
         
         # --- Exit Logic ---
+        # Standard RSI Overbought Exit
+        # In High Vol, we might want to exit earlier or trail tighter
         exit_cond = (df['rsi'] > sell_rsi)
         df.loc[exit_cond, 'exit_long'] = 1
         
         return df
 
     @staticmethod
-    def get_entry_decision(candle: Dict[str, Any], threshold: float = 0.6) -> TradeDecision:
+    def get_entry_decision(candle: Dict[str, Any], regime: MarketRegime, threshold: float = 0.6) -> TradeDecision:
         """
         Scalar version for unit testing or event-driven execution.
         """
-        # Extract features with safe defaults
-        hurst = candle.get('hurst', 0.5)
+        # Extract features
         rsi = candle.get('rsi', 50)
         close = candle.get('close', 0)
         bb_lower = candle.get('bb_lower', 0)
         ema_200 = candle.get('ema_200', 0)
         ml_pred = candle.get('ml_prediction', 0.5)
-        volume = candle.get('volume', 0)
         
-        # 2. Trending Regime (H > 0.6)
-        if hurst > 0.6:
-            if (close > ema_200) and (ml_pred > threshold) and (volume > 0):
-                return TradeDecision(True, False, "Trend Follow")
+        # Logic Matrix
+        if regime == MarketRegime.QUIET_CHOP:
+            return TradeDecision(False, False, "Quiet Chop - Stay Flat")
+            
+        elif regime == MarketRegime.PUMP_DUMP:
+            # Trend Following Allowed
+            if (close > ema_200) and (ml_pred > threshold):
+                return TradeDecision(True, False, "Trend Follow (Pump)")
                 
-        # 3. Mean Reversion Regime (H < 0.4)
-        if hurst < 0.4:
+        elif regime == MarketRegime.GRIND:
+            # Trend Following Allowed
+            if (close > ema_200) and (ml_pred > threshold):
+                return TradeDecision(True, False, "Trend Follow (Grind)")
+                
+        elif regime == MarketRegime.VIOLENT_CHOP:
+            # Mean Reversion Allowed
             if (rsi < 30) and (close <= bb_lower):
-                return TradeDecision(True, False, "Mean Reversion")
+                return TradeDecision(True, False, "Mean Reversion (Violent)")
                     
         return TradeDecision(False, False)

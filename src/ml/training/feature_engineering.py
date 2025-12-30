@@ -314,7 +314,7 @@ class FeatureEngineer:
 
         return result
 
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+    def transform(self, df: pd.DataFrame, drop_low_variance: bool = False) -> pd.DataFrame:
         """
         Transform data using pre-fitted scaler. Use this for TEST/VALIDATION data.
 
@@ -328,6 +328,7 @@ class FeatureEngineer:
 
         Args:
             df: Test/validation DataFrame with OHLCV data
+            drop_low_variance: Whether to drop low variance features (default False for test)
 
         Returns:
             DataFrame with engineered and scaled features
@@ -356,6 +357,7 @@ class FeatureEngineer:
             result,
             fix_issues=True,  # Auto-fix issues in test mode as well
             raise_on_error=False,  # Don't fail, just warn
+            drop_low_variance=drop_low_variance
         )
 
         # Apply same correlation filter (use stored feature names)
@@ -375,7 +377,7 @@ class FeatureEngineer:
         return result
 
     def validate_features(
-        self, df: pd.DataFrame, fix_issues: bool = False, raise_on_error: bool = True
+        self, df: pd.DataFrame, fix_issues: bool = False, raise_on_error: bool = True, drop_low_variance: bool = True
     ) -> Tuple[bool, Dict[str, Any]]:
         """
         Validate feature data quality.
@@ -442,18 +444,34 @@ class FeatureEngineer:
 
         # Check for Inf values
         numeric_cols = df.select_dtypes(include=[np.number]).columns
-        inf_mask = np.isinf(df[numeric_cols])
-        inf_cols = numeric_cols[inf_mask.any()].tolist()
+        # Handle potential duplicate columns during selection safely
+        try:
+            inf_mask = np.isinf(df[numeric_cols])
+        except Exception:
+            # Fallback for complex duplicate column cases
+            inf_mask = df[numeric_cols].apply(np.isinf)
+
+        # Use columns from mask to ensure alignment if duplicates expanded
+        has_inf = inf_mask.any()
+        inf_cols = inf_mask.columns[has_inf].tolist()
 
         if inf_cols:
-            inf_counts = inf_mask[inf_cols].sum().to_dict()
+            # Use safe indexing for counts
+            inf_counts = inf_mask.loc[:, has_inf].sum().to_dict()
             issues["inf_columns"] = inf_counts
             issues["warnings"].append(f"Found Inf values in {len(inf_cols)} columns: {inf_counts}")
 
             if fix_issues:
                 logger.warning(f"Replacing Inf values in {inf_cols}")
-                df[inf_cols] = df[inf_cols].replace([np.inf, -np.inf], np.nan)
-                df[inf_cols] = df[inf_cols].ffill().fillna(0)
+                # Use robust replacement that handles duplicates
+                for col in set(inf_cols):
+                    if col in df.columns:
+                        col_data = df[col]
+                        if isinstance(col_data, pd.DataFrame):
+                             # Update all duplicates
+                             df[col] = col_data.replace([np.inf, -np.inf], np.nan).ffill().fillna(0)
+                        else:
+                             df[col] = col_data.replace([np.inf, -np.inf], np.nan).ffill().fillna(0)
 
         # Check for low variance features (potentially useless)
         if len(df) > 1:
@@ -467,28 +485,50 @@ class FeatureEngineer:
                     f"Found {len(low_var_cols)} low-variance features "
                     f"(var < {low_var_threshold}): {low_var_cols[:5]}..."
                 )
+                
+                if fix_issues and drop_low_variance:
+                    # Drop low variance columns
+                    # Filter only columns that exist (in case of duplicates or changes)
+                    cols_to_drop = [c for c in low_var_cols if c in df.columns]
+                    if cols_to_drop:
+                        df.drop(columns=cols_to_drop, inplace=True)
+                        logger.info(f"Dropped {len(cols_to_drop)} low variance features")
 
         # Check for extreme outliers (beyond 5 std devs)
         for col in numeric_cols:
+            if col not in df.columns:
+                continue # Skip dropped columns
+
             if col in ["open", "high", "low", "close", "volume"]:
                 continue  # Skip OHLCV columns
 
-            mean = df[col].mean()
-            std = df[col].std()
+            # Handle duplicate columns safely
+            col_data = df[col]
+            if isinstance(col_data, pd.DataFrame):
+                # If duplicate columns exist, use the first one for stats
+                # This prevents ambiguous truth value errors and matrix operations
+                col_data = col_data.iloc[:, 0]
+
+            mean = col_data.mean()
+            std = col_data.std()
 
             if std > 0:
-                outliers = df[(df[col] - mean).abs() > 5 * std]
-                if len(outliers) > 0:
-                    outlier_pct = len(outliers) / len(df) * 100
+                # Use Series operations to find outliers (avoids df[mask] indexing issues)
+                outlier_mask = (col_data - mean).abs() > 5 * std
+                num_outliers = outlier_mask.sum()
+
+                if num_outliers > 0:
+                    outlier_pct = num_outliers / len(df) * 100
                     if outlier_pct > 1.0:  # More than 1% outliers
                         issues["outlier_columns"].append(
-                            {"column": col, "count": len(outliers), "percentage": outlier_pct}
+                            {"column": col, "count": int(num_outliers), "percentage": float(outlier_pct)}
                         )
 
                         if fix_issues:
                             # Clip to ±5 std devs
                             lower_bound = mean - 5 * std
                             upper_bound = mean + 5 * std
+                            # Apply clip (works for both Series and DataFrame if duplicate cols)
                             df[col] = df[col].clip(lower_bound, upper_bound)
 
         # Check if any critical issues found
@@ -1013,14 +1053,14 @@ class FeatureEngineer:
 
     def _apply_aggressive_cleaning(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Apply aggressive cleaning to remove NaN and Inf values.
+        Apply cleaning to remove NaN and Inf values.
         
         Steps:
         1. Replace all np.inf and -np.inf with NaN
-        2. Drop ALL rows containing NaN
+        2. Impute NaNs (Forward Fill -> Backward Fill -> Zero)
         
-        This is necessary because rolling windows (SMA, RSI, etc.) generate NaN values
-        in the first N rows, and XGBoost cannot handle NaN or Inf values.
+        NOTE: We do NOT drop rows in live trading to prevent "silent failures" 
+        where the strategy goes blind due to a single NaN.
         
         Args:
             df: DataFrame with engineered features
@@ -1028,30 +1068,45 @@ class FeatureEngineer:
         Returns:
             Cleaned DataFrame with no NaN or Inf values
         """
-        logger.info(f"Applying aggressive cleaning: {len(df)} rows before cleaning")
+        logger.info(f"Applying cleaning: {len(df)} rows")
         
         # Make a copy to avoid modifying the original
         result = df.copy()
         
         # Step 1: Replace all inf values with NaN
         numeric_cols = result.select_dtypes(include=[np.number]).columns
-        result[numeric_cols] = result[numeric_cols].replace([np.inf, -np.inf], np.nan)
+        # Avoid recursion error in pandas replace by iterating columns
+        for col in numeric_cols:
+            # Check if column has any infinite values before attempting replacement
+            # This is safer and often faster than attempting replacement on everything
+            try:
+                if np.isinf(result[col]).any():
+                    result[col] = result[col].replace([np.inf, -np.inf], np.nan)
+            except Exception:
+                # Fallback for safe handling
+                result[col] = result[col].replace([np.inf, -np.inf], np.nan)
         
-        # Step 2: Drop all rows with any NaN values
-        rows_before = len(result)
-        result = result.dropna()
-        rows_after = len(result)
+        # Step 2: Impute NaNs instead of dropping
+        # Count NaNs before
+        nan_count_before = result.isnull().sum().sum()
         
-        rows_dropped = rows_before - rows_after
-        if rows_dropped > 0:
-            logger.warning(
-                f"Dropped {rows_dropped} rows ({rows_dropped/rows_before*100:.1f}%) "
-                f"containing NaN values. This is expected due to rolling windows "
-                f"(SMA, RSI, etc.) generating NaN in the first N rows."
-            )
-            logger.info(f"Rows after cleaning: {rows_after}")
-        else:
-            logger.info("No rows dropped - data already clean")
+        if nan_count_before > 0:
+            logger.warning(f"Found {nan_count_before} NaNs. Imputing with ffill/bfill/zero.")
+            
+            # Forward fill (propagate last valid value)
+            result = result.ffill()
+            
+            # Backward fill (for initial window NaNs)
+            result = result.bfill()
+            
+            # Fill remaining with 0 (should be rare/impossible unless column is all NaN)
+            result = result.fillna(0)
+            
+            nan_count_after = result.isnull().sum().sum()
+            if nan_count_after == 0:
+                logger.info("NaN imputation successful.")
+            else:
+                logger.error(f"NaN imputation failed! {nan_count_after} NaNs remain.")
         
         return result
 

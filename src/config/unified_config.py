@@ -37,8 +37,34 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+    from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+except ImportError:
+    try:
+        # Fallback for Pydantic v2 without pydantic-settings installed
+        from pydantic.v1 import BaseSettings, BaseModel, Field, validator as field_validator, root_validator
+        
+        # Shim for model_validator
+        def model_validator(mode):
+            def decorator(func):
+                return root_validator(pre=(mode=='before'))(func)
+            return decorator
+            
+        SettingsConfigDict = None
+        ConfigDict = None
+    except ImportError:
+        # Fallback for Pydantic v1
+        from pydantic import BaseSettings, BaseModel, Field, validator as field_validator, root_validator
+        
+        # Shim for model_validator
+        def model_validator(mode):
+            def decorator(func):
+                return root_validator(pre=(mode=='before'))(func)
+            return decorator
+
+        SettingsConfigDict = None
+        ConfigDict = None
 
 logger = logging.getLogger(__name__)
 
@@ -113,14 +139,23 @@ class RiskConfig(BaseModel):
     )
     
     @model_validator(mode="after")
-    def validate_risk_reward(self) -> "RiskConfig":
+    def validate_risk_reward(cls, values: Any) -> Any:
         """Validate that take profit is greater than stop loss for positive risk/reward."""
-        if self.take_profit_pct < self.stop_loss_pct:
-            logger.warning(
-                f"Take profit ({self.take_profit_pct}) < Stop loss ({self.stop_loss_pct}). "
-                f"Consider adjusting for positive risk/reward ratio."
-            )
-        return self
+        # Handle both Pydantic V1 (dict) and V2 (object) styles
+        if isinstance(values, dict):
+            take_profit = values.get('take_profit_pct')
+            stop_loss = values.get('stop_loss_pct')
+        else:
+            take_profit = getattr(values, 'take_profit_pct', None)
+            stop_loss = getattr(values, 'stop_loss_pct', None)
+        
+        if take_profit is not None and stop_loss is not None:
+            if take_profit < stop_loss:
+                logger.warning(
+                    f"Take profit ({take_profit}) < Stop loss ({stop_loss}). "
+                    f"Consider adjusting for positive risk/reward ratio."
+                )
+        return values
 
 
 class StrategyConfig(BaseModel):
@@ -216,12 +251,19 @@ class MLConfig(BaseModel):
 class TradingConfig(BaseSettings):
     """Main trading configuration with environment variable support."""
     
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-        case_sensitive=True,
-    )
+    if SettingsConfigDict:
+        model_config = SettingsConfigDict(
+            env_file=".env",
+            env_file_encoding="utf-8",
+            extra="ignore",
+            case_sensitive=True,
+        )
+    else:
+        class Config:
+            env_file = ".env"
+            env_file_encoding = "utf-8"
+            extra = "ignore"
+            case_sensitive = True
     
     # Basic settings
     dry_run: bool = Field(
@@ -284,17 +326,28 @@ class TradingConfig(BaseSettings):
         return v
     
     @model_validator(mode="after")
-    def validate_live_trading(self) -> "TradingConfig":
+    def validate_live_trading(cls, values: Any) -> Any:
         """Validate configuration for live trading safety."""
-        if not self.dry_run and self.exchange.sandbox:
-            logger.warning(
-                "dry_run=False but sandbox=True. This will trade on testnet, not mainnet."
-            )
-        if not self.dry_run and self.leverage > 1.0:
-            logger.warning(
-                f"LIVE TRADING with {self.leverage}x leverage! Make sure you understand the risks."
-            )
-        return self
+        # Handle both Pydantic V1 (dict) and V2 (object) styles
+        if isinstance(values, dict):
+            dry_run = values.get('dry_run')
+            exchange = values.get('exchange')
+            leverage = values.get('leverage')
+        else:
+            dry_run = getattr(values, 'dry_run', None)
+            exchange = getattr(values, 'exchange', None)
+            leverage = getattr(values, 'leverage', None)
+
+        if dry_run is not None and exchange is not None and leverage is not None:
+            if not dry_run and exchange.sandbox:
+                logger.warning(
+                    "dry_run=False but sandbox=True. This will trade on testnet, not mainnet."
+                )
+            if not dry_run and leverage > 1.0:
+                logger.warning(
+                    f"LIVE TRADING with {leverage}x leverage! Make sure you understand the risks."
+                )
+        return values
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
