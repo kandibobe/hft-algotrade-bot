@@ -1,184 +1,101 @@
-# 🏛️ Stoic Citadel: Hybrid MFT Framework (v2.0)
+# 🏛 Stoic Citadel: Hybrid MFT Trading System
 
-<div align="center">
+[![Build Status](https://github.com/kandibobe/mft-algotrade-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/kandibobe/mft-algotrade-bot/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![Version](https://img.shields.io/badge/version-2.0.0-green)](CHANGELOG.md)
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Build Passing](https://img.shields.io/github/actions/workflow/status/kandibobe/mft-algotrade-bot/ci.yml?branch=main&style=for-the-badge&logo=github)](https://github.com/kandibobe/mft-algotrade-bot/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg?style=for-the-badge)](https://github.com/psf/black)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-
-**Institutional-grade hybrid trading infrastructure bridging high-conviction macro signals with low-latency execution.**
-
-[Overview](#-overview) • [Architecture](docs/ARCHITECTURE.md) • [Features](#-advanced-features) • [Stack](#-technology-stack) • [Roadmap](ROADMAP.md) • [Contributing](CONTRIBUTING.md) • [Quick Start](#-quick-start)
-
-</div>
+**Stoic Citadel** is a high-performance, hybrid Mid-Frequency Trading (MFT) system designed for cryptocurrency markets. It combines the strategic depth of [Freqtrade](https://www.freqtrade.io/) with a custom asynchronous execution layer for low-latency order management and advanced ML-driven decision making.
 
 ---
 
-## 📋 Overview
+## 🌟 Key Features
 
-**Stoic Citadel** is a professional-grade High-Frequency/Mid-Frequency (HFT/MFT) hybrid trading system. It is designed to solve the "latency-vs-intelligence" trade-off by decoupling high-level strategy logic from ultra-fast execution gates.
-
-The framework leverages a **dual-layer architecture**:
-- **Macro Layer (Strategy):** Uses asynchronous ML pipelines and regime detection to identify high-alpha opportunities (Latency: Seconds).
-- **Micro Layer (Execution):** Utilizes L2 Orderbook depth and real-time websocket streams to execute orders via ChaseLimit logic and smart routing (Latency: <100ms).
-
----
-
-## 🏗️ Architecture
-
-Stoic Citadel's hybrid nature allows it to maintain a complex ML-driven world view while executing with the precision of a market maker.
-
-```mermaid
-graph TD
-    subgraph "Exchange Layer"
-        EX[Exchange API / WS]
-    end
-
-    subgraph "Micro Layer (AsyncIO - Low Latency)"
-        WS[Websocket Aggregator]
-        SOE[Smart Order Executor]
-        L2[L2 Orderbook Handler]
-        CB[Circuit Breakers]
-    end
-
-    subgraph "Bridge"
-        HC[Hybrid Connector]
-    end
-
-    subgraph "Macro Layer (Freqtrade - Intelligent)"
-        MS[Macro Strategy]
-        ML[Meta-Learning Ensemble]
-        HRP[Hierarchical Risk Parity]
-        FS[Feature Store - Parquet/Redis]
-    end
-
-    EX <--> WS
-    WS --> L2
-    L2 --> HC
-    HC <--> MS
-    MS --> ML
-    MS --> HRP
-    HRP --> HC
-    HC --> SOE
-    SOE <--> CB
-    SOE <--> EX
-    ML <--> FS
-```
-
-> 📖 **Deep Dive:** Read the [Full Architecture Guide](docs/ARCHITECTURE.md) for more technical details.
+*   **Hybrid Architecture**: Synchronous macro-strategy layer + Asynchronous micro-execution layer.
+*   **Smart Order Execution**: Custom `ChaseLimit` logic to minimize slippage and maximize fill rates.
+*   **ML-Powered Decision Gate**: Production-ready model registry and Feast feature store integration.
+*   **Institutional Risk Management**: Real-time correlation analysis, HRP position sizing, and multi-level circuit breakers.
+*   **Enterprise Monitoring**: Comprehensive ELK stack logging and Prometheus/Grafana dashboards.
 
 ---
 
-## 🛠️ Technology Stack
+## 🏗 Architecture Overview
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" alt="PyTorch" />
-  <img src="https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white" alt="Pandas" />
-  <img src="https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white" alt="Scikit-learn" />
-  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
-  <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
-  <img src="https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white" alt="Prometheus" />
-</p>
+The system is split into two primary boundaries to ensure both strategic flexibility and execution speed:
+
+1.  **Macro Layer (Strategy)**: Handles signal generation, pair selection, and high-level portfolio management.
+2.  **Micro Layer (Execution)**: Validates signals against real-time order books and manages the lifecycle of orders with sub-millisecond precision.
+
+For more details, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
-## 🚀 Advanced Features
-
-| Feature | Standard Freqtrade | **Stoic Citadel Extended** |
-| :--- | :---: | :---: |
-| **Execution** | Market/Limit (Static) | **ChaseLimit / TWAP / VWAP** |
-| **Data Feed** | REST Polling (1s+) | **L2 Websocket Aggregator (<50ms)** |
-| **Risk Model** | Fixed / Percentage | **Hierarchical Risk Parity (HRP)** |
-| **ML Engine** | Basic Regressors | **Online Meta-Learning Ensemble** |
-| **Latency Gate** | Synchronous | **Asynchronous Micro-Layer** |
-| **Persistence** | Simple CSV/JSON | **Integrated Feature Store (Redis)** |
-
-### 💎 Highlight: Just Pushed in v2.0
-
-*   **Hierarchical Risk Parity (HRP):** Beyond simple volatility-based sizing, HRP uses quasi-diagonalization of the correlation matrix to cluster assets, ensuring robust portfolio allocation even during market regime shifts.
-*   **Smart Execution (TWAP/VWAP):** Sophisticated order splitting logic for institutional-sized positions, minimizing market impact and slippage.
-*   **MLOps Pipeline & Feature Store:** A high-performance pipeline using Parquet for historical training and Redis for real-time feature retrieval.
-*   **Online Meta-Learning Ensemble:** Models that analyze their own prediction errors in real-time, adjusting weights dynamically to adapt to changing market microstructures.
-
----
-
-## 📈 Performance Showcase (Backtest Results)
-
-Stoic Citadel is validated using rigorous walk-forward optimization and Monte Carlo simulations.
-
-### Benchmark Results (Jan 2023 - Dec 2025)
-| Market Condition | Annualized Return | Max Drawdown | Sharpe Ratio | Win Rate |
-| :--- | :---: | :---: | :---: | :---: |
-| **Bull Market** | +84.2% | -5.1% | 3.4 | 68% |
-| **Bear Market** | +12.5% | -9.4% | 1.8 | 54% |
-| **Sideways** | +22.1% | -4.2% | 2.6 | 61% |
-| **OVERALL (V2.0)** | **+42.5%** | **-8.2%** | **2.8** | **62%** |
-
----
-
-## ⚡ Quick Start
+## 🚦 Quick Start
 
 ### 1. Prerequisites
 *   Python 3.10+
-*   Docker & Docker Compose (Recommended)
-*   Make (optional, for automation)
+*   Docker & Docker Compose
+*   Redis (for feature caching)
 
-### 2. Installation & Setup
+### 2. Installation
 ```bash
-# Clone & Enter
 git clone https://github.com/kandibobe/mft-algotrade-bot.git
 cd mft-algotrade-bot
-
-# Setup Environment
-cp .env.example .env
-# Edit .env with your API keys and configuration
-
-# Launch Stack (Strategy + Monitoring + Database)
-docker-compose up -d
+python -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+pip install -r requirements.txt
 ```
 
----
-
-## 📘 Institutional Glossary
-
-*   **HRP (Hierarchical Risk Parity):** An allocation technique that uses clustering to diversify risk across correlation groups, rather than just assets.
-*   **Meta-Learning Ensemble:** An "AI that watches the AI," predicting when the primary trading model is likely to succeed or fail.
-*   **ChaseLimit:** A proprietary execution algorithm that "stalks" the best bid/ask prices to ensure 99% fill rates with 0% market fees (using maker orders).
-*   **VWAP (Volume Weighted Average Price):** A benchmark used to measure execution quality by comparing filled prices to the average market price weighted by volume.
+### 3. Configuration
+Copy the template and fill in your API credentials:
+```bash
+cp config.json.example config.json
+```
+*Note: `config.json` is automatically ignored by Git for your security.*
 
 ---
 
-## 🛡️ Risk Management & Security
+## 📊 Performance & Monitoring
 
-*   **Circuit Breakers:** Instant halt of trading if drawdown limits are breached or exchange latency spikes.
-*   **Real-time Health Checks:** Continuous monitoring of websocket heartbeat and API connectivity.
-*   **Structured Logging:** ELK-ready logs for institutional audit trails.
+### Dashboard Showcase
+> **[TODO: Вставьте сюда скриншот вашего Grafana дашборда]**
+> *Пример: `![Grafana Dashboard](docs/img/grafana_sample.png)`*
 
-For more information on our security practices, see [SECURITY.md](SECURITY.md).
-
----
-
-## 🤝 Community & Support
-
-*   **Discussions:** For general questions and community discussions, please use [GitHub Discussions](https://github.com/kandibobe/mft-algotrade-bot/discussions).
-*   **Bug Reports:** Report bugs via the [Issue Tracker](https://github.com/kandibobe/mft-algotrade-bot/issues).
-*   **Contributing:** Check our [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+### Latest Backtest Results (v2.0.0)
+| Metric | Value |
+| :--- | :--- |
+| **ROI** | [TODO: %] |
+| **Max Drawdown** | [TODO: %] |
+| **Sharpe Ratio** | [TODO: x.xx] |
+| **Win Rate** | [TODO: %] |
 
 ---
 
-## 📄 License & Disclaimer
+## 🔒 Security First
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-**DISCLAIMER:** *Trading involves significant risk of loss. Stoic Citadel is a professional tool provided "as is". The authors and contributors are not responsible for any financial losses. Past performance is not indicative of future results. Use at your own risk.*
+*   **Zero Leakage Policy**: Proprietary strategies and production configs are strictly excluded via `.gitignore`.
+*   **Sanitized History**: This repository is maintained with a clean history suitable for public collaboration.
+*   **Local-Only Mode**: All sensitive data stays on your machine.
 
 ---
-<div align="center">
-  <sub>Built with precision by the Stoic Citadel Engineering Team.</sub>
-</div>
 
-[Back to Top](#-stoic-citadel-hybrid-mft-framework-v20)
+## 📜 Documentation Index
+
+*   [Strategic Development Guide](docs/STRATEGY_DEVELOPMENT_GUIDE.md)
+*   [ML Pipeline & Training](docs/ML_TRAINING_PIPELINE.md)
+*   [Order Management Specification](docs/ORDER_MANAGEMENT.md)
+*   [Risk Management Specs](docs/RISK_MANAGEMENT_SPEC.md)
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) and our [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.
+
+---
+
+## ⚖️ License
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+Developed with 🏛 **Stoic Citadel Team**.

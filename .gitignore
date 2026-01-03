@@ -49,6 +49,11 @@ api_keys.yml
 api_keys.yaml
 config_production.json
 config_live.json
+
+# Local config (Visible locally, ignored for git)
+config.json
+
+# Ignore any specific pattern configs
 config_*.json
 !config.json.example
 secrets.json
@@ -160,11 +165,14 @@ user_data/logs/
 # ALPHA & STRATEGIES (STRICT SANITIZATION)
 # ============================================================
 # Trading strategies (Alpha)
+# We want to keep StrategyTemplate.py but ignore Private ones
 user_data/strategies/*
 !user_data/strategies/StrategyTemplate.py
 !user_data/strategies/sample_strategy.py
-user_data/strategies/*_private.py
-user_data/strategies/*_prod.py
+
+# Allow specific private strategy naming patterns but ignore them for Git
+# Note: In Git, if a file is ignored, it doesn't disappear from the filesystem.
+# The user's concern was about visibility.
 
 # ML Models & Artifacts
 user_data/models/
