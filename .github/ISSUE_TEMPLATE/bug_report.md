@@ -1,10 +1,9 @@
 ---
-name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: bug
-assignees: ''
-
+name: "🐛 Bug Report"
+about: "Create a report to help us improve Stoic Citadel"
+title: "[BUG] <Short Description>"
+labels: ["bug"]
+assignees: []
 ---
 
 **Describe the bug**
@@ -13,20 +12,21 @@ A clear and concise description of what the bug is.
 **To Reproduce**
 Steps to reproduce the behavior:
 1. Go to '...'
-2. Click on '...'
-3. Scroll down to '...'
-4. See error
+2. Run command '....'
+3. See error
 
 **Expected behavior**
 A clear and concise description of what you expected to happen.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**Screenshots/Logs**
+If applicable, add screenshots or paste relevant log output from `user_data/logs/`.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. Ubuntu, Windows]
- - Python Version [e.g. 3.10.2]
- - Branch/Commit [e.g. main/a1b2c3d]
+**Environment Details (please complete the following information):**
+- OS: [e.g. Ubuntu 22.04, Windows 11]
+- Python Version: [e.g. 3.10.12]
+- Docker/Docker-Compose Version: [e.g. 24.0.5]
+- Exchange: [e.g. Binance, Bybit]
+- Strategy: [e.g. StoicEnsembleStrategyV5]
 
 **Additional context**
-Add any other context about the problem here.
+Add any other context about the problem here. (e.g., Market conditions, specific pair being traded).
