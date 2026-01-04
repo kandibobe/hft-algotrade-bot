@@ -9,9 +9,9 @@ Supports YAML/JSON config files and environment variables.
 import json
 import logging
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 
@@ -97,7 +97,7 @@ class StrategyConfig:
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
 
-        with open(path, "r") as f:
+        with open(path) as f:
             if path.suffix in [".yml", ".yaml"]:
                 data = yaml.safe_load(f)
             else:
@@ -135,7 +135,7 @@ class StrategyConfig:
 
         return config
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return asdict(self)
 
@@ -151,7 +151,7 @@ class StrategyConfig:
             json.dump(self.to_dict(), f, indent=2)
         logger.info(f"Saved config to {path}")
 
-    def get_roi_table(self) -> Dict[str, float]:
+    def get_roi_table(self) -> dict[str, float]:
         """Get ROI table for Freqtrade."""
         return {"0": self.roi_0, "30": self.roi_30, "60": self.roi_60, "120": self.roi_120}
 

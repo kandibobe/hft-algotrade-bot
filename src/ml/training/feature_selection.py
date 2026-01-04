@@ -17,9 +17,9 @@ Methods:
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -42,7 +42,7 @@ class FeatureSelectionConfig:
     noise_multiplier: float = 1.5
 
     # Maximum number of features to keep (None = no limit)
-    max_features: Optional[int] = None
+    max_features: int | None = None
 
     # Minimum number of features to keep
     min_features: int = 5
@@ -73,17 +73,17 @@ class FeatureSelector:
         selector.save_selected_features()
     """
 
-    def __init__(self, config: Optional[FeatureSelectionConfig] = None):
+    def __init__(self, config: FeatureSelectionConfig | None = None):
         """Initialize feature selector."""
         self.config = config or FeatureSelectionConfig()
-        self.selected_features: List[str] = []
-        self.feature_importance: Dict[str, float] = {}
-        self.dropped_features: Dict[str, str] = {}  # feature -> reason
-        self.correlation_matrix: Optional[pd.DataFrame] = None
+        self.selected_features: list[str] = []
+        self.feature_importance: dict[str, float] = {}
+        self.dropped_features: dict[str, str] = {}  # feature -> reason
+        self.correlation_matrix: pd.DataFrame | None = None
 
     def fit_transform(
-        self, X: pd.DataFrame, y: pd.Series, model: Optional[Any] = None
-    ) -> Tuple[pd.DataFrame, List[str]]:
+        self, X: pd.DataFrame, y: pd.Series, model: Any | None = None
+    ) -> tuple[pd.DataFrame, list[str]]:
         """
         Fit feature selector and transform data.
 
@@ -180,7 +180,7 @@ class FeatureSelector:
 
         return X[self.selected_features]
 
-    def _remove_correlated(self, X: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+    def _remove_correlated(self, X: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         """Remove highly correlated features."""
         # Calculate correlation matrix
         self.correlation_matrix = X.corr().abs()
@@ -208,7 +208,7 @@ class FeatureSelector:
             n_estimators=100, max_depth=10, random_state=self.config.random_state, n_jobs=-1
         )
 
-    def _calculate_shap_importance(self, X: pd.DataFrame, model: Any) -> Dict[str, float]:
+    def _calculate_shap_importance(self, X: pd.DataFrame, model: Any) -> dict[str, float]:
         """Calculate SHAP-based feature importance."""
         try:
             import shap
@@ -245,10 +245,9 @@ class FeatureSelector:
 
     def _calculate_permutation_importance(
         self, X: pd.DataFrame, y: pd.Series, model: Any
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Calculate permutation-based feature importance."""
         from sklearn.inspection import permutation_importance
-        from sklearn.model_selection import cross_val_score
 
         logger.info("Calculating permutation importance...")
 
@@ -276,8 +275,8 @@ class FeatureSelector:
             return {}
 
     def _combine_importances(
-        self, shap_importance: Dict[str, float], perm_importance: Dict[str, float]
-    ) -> Dict[str, float]:
+        self, shap_importance: dict[str, float], perm_importance: dict[str, float]
+    ) -> dict[str, float]:
         """Combine SHAP and permutation importance scores."""
         all_features = set(shap_importance.keys()) | set(perm_importance.keys())
 
@@ -307,7 +306,7 @@ class FeatureSelector:
 
     def _add_noise_feature(
         self, X: pd.DataFrame, y: pd.Series, model: Any
-    ) -> Tuple[pd.DataFrame, float]:
+    ) -> tuple[pd.DataFrame, float]:
         """
         Add random noise feature to establish importance baseline.
 
@@ -334,7 +333,7 @@ class FeatureSelector:
 
         return X_with_noise.drop(columns=["_random_noise_"]), noise_importance
 
-    def save_selected_features(self, path: Optional[str] = None):
+    def save_selected_features(self, path: str | None = None):
         """
         Save selected features to JSON file.
 
@@ -361,7 +360,7 @@ class FeatureSelector:
 
         logger.info(f"Selected features saved to {output_path}")
 
-    def load_selected_features(self, path: Optional[str] = None) -> List[str]:
+    def load_selected_features(self, path: str | None = None) -> list[str]:
         """
         Load selected features from JSON file.
 
@@ -373,7 +372,7 @@ class FeatureSelector:
         """
         input_path = Path(path or self.config.output_path)
 
-        with open(input_path, "r") as f:
+        with open(input_path) as f:
             data = json.load(f)
 
         self.selected_features = data["selected_features"]
@@ -436,12 +435,12 @@ class RecursiveFeatureEliminator:
         self.cv_folds = cv_folds
         self.scoring = scoring
         self.random_state = random_state
-        self.selected_features: List[str] = []
-        self.cv_scores: Dict[int, float] = {}
+        self.selected_features: list[str] = []
+        self.cv_scores: dict[int, float] = {}
 
     def fit_transform(
-        self, X: pd.DataFrame, y: pd.Series, model: Optional[Any] = None
-    ) -> Tuple[pd.DataFrame, List[str]]:
+        self, X: pd.DataFrame, y: pd.Series, model: Any | None = None
+    ) -> tuple[pd.DataFrame, list[str]]:
         """
         Perform RFECV to find optimal features.
 

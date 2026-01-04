@@ -1,0 +1,7 @@
+project: mft_algotrade_bot
+registry: ../user_data/models/registry/registry.db
+provider: local
+online_store:
+    type: sqlite
+    path: ../user_data/models/registry/online_store.db
+entity_key_serialization_version: 2

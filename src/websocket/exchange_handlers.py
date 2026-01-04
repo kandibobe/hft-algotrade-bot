@@ -14,11 +14,11 @@ import json
 import logging
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol, Union
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from .exchange_types import Exchange
 from .data_types import IWebSocketClient, TickerData, TradeData
+from .exchange_types import Exchange
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class ExchangeHandler(ABC):
 
     @abstractmethod
     async def subscribe(
-        self, websocket: IWebSocketClient, symbols: List[str], channels: List[str]
+        self, websocket: IWebSocketClient, symbols: list[str], channels: list[str]
     ) -> None:
         """
         Subscribe to channels and symbols on the exchange.
@@ -46,9 +46,9 @@ class ExchangeHandler(ABC):
     @abstractmethod
     async def handle_message(
         self,
-        data: Dict[str, Any],
-        ticker_handlers: List[Callable[[TickerData], Awaitable[None]]],
-        trade_handlers: List[Callable[[TradeData], Awaitable[None]]],
+        data: dict[str, Any],
+        ticker_handlers: list[Callable[[TickerData], Awaitable[None]]],
+        trade_handlers: list[Callable[[TradeData], Awaitable[None]]],
     ) -> None:
         """
         Parse exchange-specific message and call appropriate handlers.
@@ -62,7 +62,7 @@ class ExchangeHandler(ABC):
 
     @abstractmethod
     async def subscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """
         Subscribe to a single symbol dynamically.
@@ -76,7 +76,7 @@ class ExchangeHandler(ABC):
 
     @abstractmethod
     async def unsubscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """
         Unsubscribe from a single symbol dynamically.
@@ -100,7 +100,7 @@ class BinanceHandler(ExchangeHandler):
         super().__init__(Exchange.BINANCE)
 
     async def subscribe(
-        self, websocket: IWebSocketClient, symbols: List[str], channels: List[str]
+        self, websocket: IWebSocketClient, symbols: list[str], channels: list[str]
     ) -> None:
         """Binance-specific subscription."""
         streams = []
@@ -119,9 +119,9 @@ class BinanceHandler(ExchangeHandler):
 
     async def handle_message(
         self,
-        data: Dict[str, Any],
-        ticker_handlers: List[Callable[[TickerData], Awaitable[None]]],
-        trade_handlers: List[Callable[[TradeData], Awaitable[None]]],
+        data: dict[str, Any],
+        ticker_handlers: list[Callable[[TickerData], Awaitable[None]]],
+        trade_handlers: list[Callable[[TradeData], Awaitable[None]]],
     ) -> None:
         """Handle Binance-specific message format."""
         event_type = data.get("e")
@@ -154,7 +154,7 @@ class BinanceHandler(ExchangeHandler):
                 await handler(trade)  # type: ignore
 
     async def subscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """Add symbol to Binance subscription."""
         symbol_lower = symbol.replace("/", "").lower()
@@ -169,7 +169,7 @@ class BinanceHandler(ExchangeHandler):
         logger.info(f"Subscribed to Binance symbol {symbol}")
 
     async def unsubscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """Remove symbol from Binance subscription."""
         symbol_lower = symbol.replace("/", "").lower()
@@ -191,7 +191,7 @@ class BybitHandler(ExchangeHandler):
         super().__init__(Exchange.BYBIT)
 
     async def subscribe(
-        self, websocket: IWebSocketClient, symbols: List[str], channels: List[str]
+        self, websocket: IWebSocketClient, symbols: list[str], channels: list[str]
     ) -> None:
         """Bybit-specific subscription."""
         args = []
@@ -208,9 +208,9 @@ class BybitHandler(ExchangeHandler):
 
     async def handle_message(
         self,
-        data: Dict[str, Any],
-        ticker_handlers: List[Callable[[TickerData], Awaitable[None]]],
-        trade_handlers: List[Callable[[TradeData], Awaitable[None]]],
+        data: dict[str, Any],
+        ticker_handlers: list[Callable[[TickerData], Awaitable[None]]],
+        trade_handlers: list[Callable[[TradeData], Awaitable[None]]],
     ) -> None:
         """Handle Bybit-specific message format."""
         topic = data.get("topic", "")
@@ -245,7 +245,7 @@ class BybitHandler(ExchangeHandler):
                     await handler(trade)  # type: ignore
 
     async def subscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """Add symbol to Bybit subscription."""
         symbol_upper = symbol.replace("/", "").upper()
@@ -260,7 +260,7 @@ class BybitHandler(ExchangeHandler):
         logger.info(f"Subscribed to Bybit symbol {symbol}")
 
     async def unsubscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """Remove symbol from Bybit subscription."""
         symbol_upper = symbol.replace("/", "").upper()
@@ -282,7 +282,7 @@ class OkxHandler(ExchangeHandler):
         super().__init__(Exchange.OKX)
 
     async def subscribe(
-        self, websocket: IWebSocketClient, symbols: List[str], channels: List[str]
+        self, websocket: IWebSocketClient, symbols: list[str], channels: list[str]
     ) -> None:
         """OKX-specific subscription."""
         args = []
@@ -292,19 +292,16 @@ class OkxHandler(ExchangeHandler):
                 args.append({"channel": "tickers", "instId": symbol_upper})
             if "trade" in channels:
                 args.append({"channel": "trades", "instId": symbol_upper})
-        
-        subscribe_msg = {
-            "op": "subscribe",
-            "args": args
-        }
+
+        subscribe_msg = {"op": "subscribe", "args": args}
         await websocket.send(json.dumps(subscribe_msg))
         logger.info(f"Subscribed to {len(args)} OKX streams")
 
     async def handle_message(
         self,
-        data: Dict[str, Any],
-        ticker_handlers: List[Callable[[TickerData], Awaitable[None]]],
-        trade_handlers: List[Callable[[TradeData], Awaitable[None]]],
+        data: dict[str, Any],
+        ticker_handlers: list[Callable[[TickerData], Awaitable[None]]],
+        trade_handlers: list[Callable[[TradeData], Awaitable[None]]],
     ) -> None:
         """Handle OKX-specific message format."""
         event = data.get("event")
@@ -312,14 +309,14 @@ class OkxHandler(ExchangeHandler):
             # Subscription confirmation or error
             logger.debug(f"OKX subscription event: {data}")
             return
-        
+
         arg = data.get("arg", {})
         channel = arg.get("channel", "")
         data_list = data.get("data", [])
-        
+
         if not data_list:
             return
-        
+
         if channel == "tickers":
             for ticker_data in data_list:
                 ticker = TickerData(
@@ -329,12 +326,16 @@ class OkxHandler(ExchangeHandler):
                     ask=float(ticker_data.get("askPx", 0)),
                     last=float(ticker_data.get("last", 0)),
                     volume_24h=float(ticker_data.get("vol24h", 0)),
-                    change_24h=float(ticker_data.get("lastPx", 0)) / float(ticker_data.get("open24h", 1)) - 1 if ticker_data.get("open24h") else 0,
+                    change_24h=float(ticker_data.get("lastPx", 0))
+                    / float(ticker_data.get("open24h", 1))
+                    - 1
+                    if ticker_data.get("open24h")
+                    else 0,
                     timestamp=int(ticker_data.get("ts", time.time() * 1000)) / 1000,
                 )
                 for handler in ticker_handlers:
                     await handler(ticker)
-        
+
         elif channel == "trades":
             for trade_data in data_list:
                 trade = TradeData(
@@ -350,7 +351,7 @@ class OkxHandler(ExchangeHandler):
                     await handler(trade)
 
     async def subscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """Add symbol to OKX subscription."""
         symbol_upper = symbol.replace("/", "-").upper()
@@ -359,16 +360,13 @@ class OkxHandler(ExchangeHandler):
             args.append({"channel": "tickers", "instId": symbol_upper})
         if "trade" in channels:
             args.append({"channel": "trades", "instId": symbol_upper})
-        
-        msg = {
-            "op": "subscribe",
-            "args": args
-        }
+
+        msg = {"op": "subscribe", "args": args}
         await websocket.send(json.dumps(msg))
         logger.info(f"Subscribed to OKX symbol {symbol}")
 
     async def unsubscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """Remove symbol from OKX subscription."""
         symbol_upper = symbol.replace("/", "-").upper()
@@ -377,11 +375,8 @@ class OkxHandler(ExchangeHandler):
             args.append({"channel": "tickers", "instId": symbol_upper})
         if "trade" in channels:
             args.append({"channel": "trades", "instId": symbol_upper})
-        
-        msg = {
-            "op": "unsubscribe",
-            "args": args
-        }
+
+        msg = {"op": "unsubscribe", "args": args}
         await websocket.send(json.dumps(msg))
         logger.info(f"Unsubscribed from OKX symbol {symbol}")
 
@@ -393,29 +388,29 @@ class KrakenHandler(ExchangeHandler):
         super().__init__(Exchange.KRAKEN)
 
     async def subscribe(
-        self, websocket: IWebSocketClient, symbols: List[str], channels: List[str]
+        self, websocket: IWebSocketClient, symbols: list[str], channels: list[str]
     ) -> None:
         """Kraken-specific subscription."""
         subscribe_msg = {
             "event": "subscribe",
             "pair": [self._format_symbol(symbol) for symbol in symbols],
-            "subscription": {}
+            "subscription": {},
         }
-        
+
         # Add subscriptions based on channels
         if "ticker" in channels:
             subscribe_msg["subscription"]["ticker"] = {}
         if "trade" in channels:
             subscribe_msg["subscription"]["trade"] = {}
-        
+
         await websocket.send(json.dumps(subscribe_msg))
         logger.info(f"Subscribed to {len(symbols)} Kraken symbols")
 
     async def handle_message(
         self,
-        data: Dict[str, Any],
-        ticker_handlers: List[Callable[[TickerData], Awaitable[None]]],
-        trade_handlers: List[Callable[[TradeData], Awaitable[None]]],
+        data: dict[str, Any],
+        ticker_handlers: list[Callable[[TickerData], Awaitable[None]]],
+        trade_handlers: list[Callable[[TradeData], Awaitable[None]]],
     ) -> None:
         """Handle Kraken-specific message format."""
         event = data.get("event")
@@ -423,18 +418,18 @@ class KrakenHandler(ExchangeHandler):
             # Subscription confirmation or heartbeat
             logger.debug(f"Kraken event: {event}")
             return
-        
+
         channel = data.get("channelID")
         if not channel:
             return
-        
+
         # Check if it's ticker data
         if isinstance(data.get(1), dict) and "a" in data[1] and "b" in data[1]:
             # Ticker data
             ticker_data = data[1]
             pair_name = data.get("pair", "")
             symbol = self._parse_symbol(pair_name)
-            
+
             ticker = TickerData(
                 exchange="kraken",
                 symbol=symbol,
@@ -447,14 +442,18 @@ class KrakenHandler(ExchangeHandler):
             )
             for handler in ticker_handlers:
                 await handler(ticker)
-        
+
         # Check if it's trade data
-        elif isinstance(data.get(1), list) and len(data.get(1, [])) > 0 and isinstance(data[1][0], list):
+        elif (
+            isinstance(data.get(1), list)
+            and len(data.get(1, [])) > 0
+            and isinstance(data[1][0], list)
+        ):
             # Trade data
             trades = data[1]
             pair_name = data.get("pair", "")
             symbol = self._parse_symbol(pair_name)
-            
+
             for trade in trades:
                 trade_obj = TradeData(
                     exchange="kraken",
@@ -469,38 +468,38 @@ class KrakenHandler(ExchangeHandler):
                     await handler(trade_obj)
 
     async def subscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """Add symbol to Kraken subscription."""
         subscribe_msg = {
             "event": "subscribe",
             "pair": [self._format_symbol(symbol)],
-            "subscription": {}
+            "subscription": {},
         }
-        
+
         if "ticker" in channels:
             subscribe_msg["subscription"]["ticker"] = {}
         if "trade" in channels:
             subscribe_msg["subscription"]["trade"] = {}
-        
+
         await websocket.send(json.dumps(subscribe_msg))
         logger.info(f"Subscribed to Kraken symbol {symbol}")
 
     async def unsubscribe_symbol(
-        self, websocket: IWebSocketClient, symbol: str, channels: List[str]
+        self, websocket: IWebSocketClient, symbol: str, channels: list[str]
     ) -> None:
         """Remove symbol from Kraken subscription."""
         unsubscribe_msg = {
             "event": "unsubscribe",
             "pair": [self._format_symbol(symbol)],
-            "subscription": {}
+            "subscription": {},
         }
-        
+
         if "ticker" in channels:
             unsubscribe_msg["subscription"]["ticker"] = {}
         if "trade" in channels:
             unsubscribe_msg["subscription"]["trade"] = {}
-        
+
         await websocket.send(json.dumps(unsubscribe_msg))
         logger.info(f"Unsubscribed from Kraken symbol {symbol}")
 
@@ -517,7 +516,7 @@ class KrakenHandler(ExchangeHandler):
         # Convert XBT back to BTC
         if kraken_symbol.startswith("XBT"):
             kraken_symbol = "BTC" + kraken_symbol[3:]
-        
+
         # Insert slash for pairs like BTCUSD -> BTC/USD
         if len(kraken_symbol) >= 6:
             # Assuming format like BTCUSD, ETHUSD, etc.

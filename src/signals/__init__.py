@@ -2,4 +2,4 @@
 
 from signals.indicators import IndicatorLibrary, SignalGenerator
 
-__all__ = ["SignalGenerator", "IndicatorLibrary"]
+__all__ = ["IndicatorLibrary", "SignalGenerator"]

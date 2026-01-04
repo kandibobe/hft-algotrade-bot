@@ -8,10 +8,11 @@ Orchestrates model training with hyperparameter optimization.
 import json
 import logging
 import pickle
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -46,14 +47,14 @@ class TrainingConfig:
 
     # Feature selection
     feature_selection: bool = True
-    max_features: Optional[int] = None
+    max_features: int | None = None
 
     # Output
     save_model: bool = True
     models_dir: str = "user_data/models"
 
     # Callbacks
-    callbacks: List[Callable] = field(default_factory=list)
+    callbacks: list[Callable] = field(default_factory=list)
 
 
 class ModelTrainer:
@@ -73,7 +74,7 @@ class ModelTrainer:
         model, metrics = trainer.train(X_train, y_train, X_val, y_val)
     """
 
-    def __init__(self, config: Optional[TrainingConfig] = None) -> None:
+    def __init__(self, config: TrainingConfig | None = None) -> None:
         """
         Initialize model trainer.
 
@@ -82,8 +83,8 @@ class ModelTrainer:
         """
         self.config = config or TrainingConfig()
         self.model: Any = None
-        self.feature_importance: Optional[pd.DataFrame] = None
-        self.training_history: List[Any] = []
+        self.feature_importance: pd.DataFrame | None = None
+        self.training_history: list[Any] = []
 
         # Create models directory
         Path(self.config.models_dir).mkdir(parents=True, exist_ok=True)
@@ -92,9 +93,9 @@ class ModelTrainer:
         self,
         X: pd.DataFrame,
         y: pd.Series,
-        X_val: Optional[pd.DataFrame] = None,
-        y_val: Optional[pd.Series] = None,
-    ) -> Tuple[Any, Dict[str, float]]:
+        X_val: pd.DataFrame | None = None,
+        y_val: pd.Series | None = None,
+    ) -> tuple[Any, dict[str, float]]:
         """
         Train model.
 
@@ -157,9 +158,9 @@ class ModelTrainer:
             from sklearn.ensemble import RandomForestClassifier
 
             # Add class_weight='balanced' to handle class imbalance
-            if 'class_weight' not in hyperparams:
-                hyperparams['class_weight'] = 'balanced'
-            
+            if "class_weight" not in hyperparams:
+                hyperparams["class_weight"] = "balanced"
+
             return RandomForestClassifier(
                 random_state=self.config.random_state, n_jobs=-1, **hyperparams
             )
@@ -168,11 +169,11 @@ class ModelTrainer:
 
             # Default regularization parameters to prevent overfitting
             default_params = {
-                'max_depth': 3,
-                'n_estimators': 500,
-                'learning_rate': 0.05,
-                'subsample': 0.7,
-                'colsample_bytree': 0.7,
+                "max_depth": 3,
+                "n_estimators": 500,
+                "learning_rate": 0.05,
+                "subsample": 0.7,
+                "colsample_bytree": 0.7,
             }
             # Merge hyperparams, with hyperparams taking precedence
             merged_params = {**default_params, **hyperparams}
@@ -193,7 +194,7 @@ class ModelTrainer:
 
     def _optimize_hyperparams(
         self, X: pd.DataFrame, y: pd.Series, X_val: pd.DataFrame, y_val: pd.Series
-    ) -> Tuple[Any, Dict[str, Any]]:
+    ) -> tuple[Any, dict[str, Any]]:
         """Optimize hyperparameters using Optuna."""
         import optuna
 
@@ -255,7 +256,7 @@ class ModelTrainer:
 
     def _select_features(
         self, X_train: pd.DataFrame, y_train: pd.Series, X_val: pd.DataFrame
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Select most important features."""
         from sklearn.ensemble import RandomForestClassifier
         from sklearn.feature_selection import SelectFromModel
@@ -281,9 +282,7 @@ class ModelTrainer:
             index=X_val.index,
         )
 
-        logger.info(
-            f"Selected {X_train_selected.shape[1]} features from {X_train.shape[1]} total"
-        )
+        logger.info(f"Selected {X_train_selected.shape[1]} features from {X_train.shape[1]} total")
 
         return X_train_selected, X_val_selected
 
@@ -296,11 +295,11 @@ class ModelTrainer:
 
             self.feature_importance = importance
 
-            logger.info(f"Top 10 features:")
+            logger.info("Top 10 features:")
             for idx, row in importance.head(10).iterrows():
                 logger.info(f"  {row['feature']}: {row['importance']:.4f}")
 
-    def _evaluate(self, X_val: pd.DataFrame, y_val: pd.Series) -> Dict[str, float]:
+    def _evaluate(self, X_val: pd.DataFrame, y_val: pd.Series) -> dict[str, float]:
         """Evaluate model on validation set."""
         y_pred = self.model.predict(X_val)
         y_pred_proba = (
@@ -320,13 +319,13 @@ class ModelTrainer:
 
             metrics["roc_auc"] = roc_auc_score(y_val, y_pred_proba)
 
-        logger.info(f"Validation metrics:")
+        logger.info("Validation metrics:")
         for metric, value in metrics.items():
             logger.info(f"  {metric}: {value:.4f}")
 
         return metrics
 
-    def _save_model(self, metrics: Dict[str, float]) -> None:
+    def _save_model(self, metrics: dict[str, float]) -> None:
         """Save trained model to disk."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_name = f"{self.config.model_type}_{timestamp}.pkl"
@@ -362,7 +361,7 @@ class ModelTrainer:
         logger.info(f"Model saved to: {model_path}")
         logger.info(f"Metadata saved to: {metadata_path}")
 
-    def cross_validate(self, X: pd.DataFrame, y: pd.Series) -> Dict[str, List[float]]:
+    def cross_validate(self, X: pd.DataFrame, y: pd.Series) -> dict[str, list[float]]:
         """
         Perform time-series cross-validation.
 
@@ -377,8 +376,11 @@ class ModelTrainer:
 
         tscv = TimeSeriesSplit(n_splits=self.config.n_splits)
 
-        cv_metrics: Dict[str, List[float]] = {
-            "accuracy": [], "precision": [], "recall": [], "f1": []
+        cv_metrics: dict[str, list[float]] = {
+            "accuracy": [],
+            "precision": [],
+            "recall": [],
+            "f1": [],
         }
 
         for fold, (train_idx, val_idx) in enumerate(tscv.split(X), 1):

@@ -21,17 +21,16 @@ import logging
 import pickle
 import random
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
-import pandas as pd
 
 # Try to import river for streaming ML
 try:
-    from river import drift, linear_model, metrics, optimizers, losses
+    from river import drift, linear_model, losses, metrics, optimizers
 
     RIVER_AVAILABLE = True
 except ImportError as e:
@@ -62,7 +61,6 @@ except ImportError as e:
 
 # Scikit-learn for fallback
 from sklearn.linear_model import SGDClassifier
-from sklearn.metrics import accuracy_score
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +148,7 @@ class OnlineLearner:
             learner.replace_production_model()
     """
 
-    def __init__(self, base_model_path: str, config: Optional[OnlineLearningConfig] = None):
+    def __init__(self, base_model_path: str, config: OnlineLearningConfig | None = None):
         """
         Initialize Online Learner.
 
@@ -179,14 +177,14 @@ class OnlineLearner:
         self.drift_detector = self._initialize_drift_detector()
 
         # Performance tracking
-        self.prod_performance_history: List[float] = []
-        self.online_performance_history: List[float] = []
+        self.prod_performance_history: list[float] = []
+        self.online_performance_history: list[float] = []
         self.update_count = 0
         self.ab_test_samples = 0
 
         # A/B testing state
         self.ab_test_active = False
-        self.ab_test_results: Dict[str, Any] = {}
+        self.ab_test_results: dict[str, Any] = {}
 
         logger.info(f"Online Learner initialized with {'river' if RIVER_AVAILABLE else 'sklearn'}")
 
@@ -266,7 +264,7 @@ class OnlineLearner:
 
             return SklearnMetrics()
 
-    def _initialize_drift_detector(self) -> Optional[Any]:
+    def _initialize_drift_detector(self) -> Any | None:
         """Initialize drift detector."""
         if not self.config.enable_drift_detection:
             return None
@@ -301,7 +299,7 @@ class OnlineLearner:
                 threshold=self.config.improvement_threshold,
             )
 
-    def update_online(self, X: Union[np.ndarray, Dict[str, float]], y_true: int):
+    def update_online(self, X: np.ndarray | dict[str, float], y_true: int):
         """
         Update online model with new data.
 
@@ -352,7 +350,7 @@ class OnlineLearner:
                 f"Online Acc={self.online_metrics.get():.3f}"
             )
 
-    def _predict_prod(self, X: Union[np.ndarray, Dict[str, float]]) -> int:
+    def _predict_prod(self, X: np.ndarray | dict[str, float]) -> int:
         """Predict using production model."""
         try:
             if isinstance(X, dict):
@@ -370,12 +368,12 @@ class OnlineLearner:
             logger.error(f"Production model prediction error: {e}")
             return 0  # Conservative fallback
 
-    def _predict_online(self, X: Union[np.ndarray, Dict[str, float]]) -> int:
+    def _predict_online(self, X: np.ndarray | dict[str, float]) -> int:
         """Predict using online model."""
         try:
             if RIVER_AVAILABLE and self.config.use_river:
                 # Check if model has predict_one method (river)
-                if hasattr(self.online_model, 'predict_one'):
+                if hasattr(self.online_model, "predict_one"):
                     return int(self.online_model.predict_one(X))
                 else:
                     # Fallback to sklearn predict
@@ -396,12 +394,12 @@ class OnlineLearner:
             logger.error(f"Online model prediction error: {e}")
             return 0  # Conservative fallback
 
-    def _learn_online(self, X: Union[np.ndarray, Dict[str, float]], y_true: int):
+    def _learn_online(self, X: np.ndarray | dict[str, float], y_true: int):
         """Update online model with new sample."""
         try:
             if RIVER_AVAILABLE and self.config.use_river:
                 # Check if model has learn_one method (river)
-                if hasattr(self.online_model, 'learn_one'):
+                if hasattr(self.online_model, "learn_one"):
                     self.online_model.learn_one(X, y_true)
                 else:
                     # Fallback to sklearn partial_fit
@@ -434,7 +432,7 @@ class OnlineLearner:
         except Exception as e:
             logger.error(f"Online learning error: {e}")
 
-    def predict(self, X: Union[np.ndarray, Dict[str, float]], use_ab_test: bool = True) -> int:
+    def predict(self, X: np.ndarray | dict[str, float], use_ab_test: bool = True) -> int:
         """
         Get prediction with optional A/B testing.
 
@@ -452,7 +450,7 @@ class OnlineLearner:
             return self._predict_prod(X)
 
     def gradual_rollout(
-        self, X: Union[np.ndarray, Dict[str, float]], traffic_pct: Optional[float] = None
+        self, X: np.ndarray | dict[str, float], traffic_pct: float | None = None
     ) -> int:
         """
         A/B test: Route percentage of traffic to online model.
@@ -545,7 +543,7 @@ class OnlineLearner:
             logger.error(f"Failed to replace production model: {e}")
             return False
 
-    def start_ab_test(self, traffic_pct: Optional[float] = None) -> bool:
+    def start_ab_test(self, traffic_pct: float | None = None) -> bool:
         """
         Start A/B test between production and online models.
 
@@ -569,11 +567,11 @@ class OnlineLearner:
         }
 
         logger.info(
-            f"A/B test started with {self.config.ab_test_traffic_pct*100:.1f}% traffic to online model"
+            f"A/B test started with {self.config.ab_test_traffic_pct * 100:.1f}% traffic to online model"
         )
         return True
 
-    def stop_ab_test(self) -> Dict[str, Any]:
+    def stop_ab_test(self) -> dict[str, Any]:
         """
         Stop A/B test and return results.
 
@@ -637,7 +635,7 @@ class OnlineLearner:
             return True
         return False
 
-    def get_performance_stats(self) -> Dict[str, Any]:
+    def get_performance_stats(self) -> dict[str, Any]:
         """
         Get performance statistics for both models.
 
@@ -707,7 +705,7 @@ class OnlineLearner:
         for X, y in zip(X_batch, y_batch):
             self.update_online(X, y)
 
-    def evaluate_on_batch(self, X_batch: np.ndarray, y_batch: np.ndarray) -> Dict[str, float]:
+    def evaluate_on_batch(self, X_batch: np.ndarray, y_batch: np.ndarray) -> dict[str, float]:
         """
         Evaluate both models on a batch of data.
 

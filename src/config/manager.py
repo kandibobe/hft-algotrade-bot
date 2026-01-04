@@ -6,37 +6,37 @@ Single source of truth for application configuration.
 Loads validated config and exposes it as a singleton.
 """
 
+import json
 import logging
 import os
-import json
-from typing import Optional, Dict, Any
 
 from src.config.unified_config import TradingConfig, load_config
 
 logger = logging.getLogger(__name__)
 
+
 class ConfigurationManager:
-    _instance: Optional[TradingConfig] = None
-    _config_path: Optional[str] = None
+    _instance: TradingConfig | None = None
+    _config_path: str | None = None
 
     @classmethod
-    def initialize(cls, config_path: Optional[str] = None) -> TradingConfig:
+    def initialize(cls, config_path: str | None = None) -> TradingConfig:
         """Initialize the configuration singleton."""
         if cls._instance is not None:
             logger.warning("Configuration already initialized, reloading...")
-        
+
         # Priority: Argument > Environment Variable > Default
         path = config_path or os.getenv("STOIC_CONFIG_PATH")
-        
+
         try:
             cls._instance = load_config(path)
             cls._config_path = path
-            
+
             # Run safety checks
             issues = cls._instance.validate_for_live_trading()
             for issue in issues:
                 logger.warning(f"Config Warning: {issue}")
-                
+
             logger.info(f"Configuration loaded successfully from {path or 'env'}")
             return cls._instance
         except Exception as e:
@@ -59,9 +59,9 @@ class ConfigurationManager:
         """
         if cls._instance is None:
             cls.initialize()
-            
+
         cfg = cls._instance
-        
+
         freqtrade_config = {
             "max_open_trades": cfg.max_open_trades,
             "stake_currency": cfg.stake_currency,
@@ -79,15 +79,9 @@ class ConfigurationManager:
                 "key": cfg.exchange.api_key or "",
                 "secret": cfg.exchange.api_secret or "",
                 "ccxt_config": {"enableRateLimit": True},
-                "ccxt_async_config": {
-                    "enableRateLimit": True,
-                    "rateLimit": 200
-                },
+                "ccxt_async_config": {"enableRateLimit": True, "rateLimit": 200},
                 "pair_whitelist": cfg.pairs,
-                "pair_blacklist": [
-                    "(BNB)/.*", 
-                    ".*(_PREMIUM|BEAR|BULL|DOWN|UP|[1235][SL])/.*"
-                ]
+                "pair_blacklist": ["(BNB)/.*", ".*(_PREMIUM|BEAR|BULL|DOWN|UP|[1235][SL])/.*"],
             },
             "timeframe": cfg.timeframe,
             "entry_pricing": {
@@ -95,24 +89,13 @@ class ConfigurationManager:
                 "use_order_book": True,
                 "order_book_top": 1,
                 "price_last_balance": 0.0,
-                "check_depth_of_market": {
-                    "enabled_in_dry_run": False,
-                    "bids_to_ask_delta": 1
-                }
+                "check_depth_of_market": {"enabled_in_dry_run": False, "bids_to_ask_delta": 1},
             },
-            "exit_pricing": {
-                "price_side": "same",
-                "use_order_book": True,
-                "order_book_top": 1
-            },
+            "exit_pricing": {"price_side": "same", "use_order_book": True, "order_book_top": 1},
             "pairlists": [
                 {"method": "StaticPairList"},
             ],
-            "telegram": {
-                "enabled": False,
-                "token": "",
-                "chat_id": ""
-            },
+            "telegram": {"enabled": False, "token": "", "chat_id": ""},
             "api_server": {
                 "enabled": True,
                 "listen_ip_address": "0.0.0.0",
@@ -123,15 +106,14 @@ class ConfigurationManager:
             "bot_name": "StoicCitadel",
             "initial_state": "running",
             "force_entry_enable": True,
-            "internals": {
-                "process_throttle_secs": 5
-            }
+            "internals": {"process_throttle_secs": 5},
         }
-        
-        with open(output_path, 'w') as f:
+
+        with open(output_path, "w") as f:
             json.dump(freqtrade_config, f, indent=4)
-        
+
         logger.info(f"Generated Freqtrade config at {output_path}")
+
 
 # Global accessor
 config = ConfigurationManager.get_config

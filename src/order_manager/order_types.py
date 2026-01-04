@@ -10,7 +10,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +61,8 @@ class Order:
 
     # Identity
     order_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    client_order_id: Optional[str] = None
-    exchange_order_id: Optional[str] = None
+    client_order_id: str | None = None
+    exchange_order_id: str | None = None
 
     # Basic order info
     symbol: str = ""
@@ -75,36 +75,36 @@ class Order:
     remaining_quantity: float = 0.0  # Remaining to fill
 
     # Prices
-    price: Optional[float] = None  # Limit price (for limit orders)
-    stop_price: Optional[float] = None  # Stop trigger price
-    average_fill_price: Optional[float] = None
+    price: float | None = None  # Limit price (for limit orders)
+    stop_price: float | None = None  # Stop trigger price
+    average_fill_price: float | None = None
 
     # Status
     status: OrderStatus = OrderStatus.PENDING
 
     # Timestamps
     created_at: datetime = field(default_factory=datetime.now)
-    submitted_at: Optional[datetime] = None
-    filled_at: Optional[datetime] = None
+    submitted_at: datetime | None = None
+    filled_at: datetime | None = None
     updated_at: datetime = field(default_factory=datetime.now)
 
     # Metadata
-    strategy_name: Optional[str] = None
-    position_id: Optional[str] = None
-    tags: Dict[str, Any] = field(default_factory=dict)
+    strategy_name: str | None = None
+    position_id: str | None = None
+    tags: dict[str, Any] = field(default_factory=dict)
 
     # Fees and costs
     commission: float = 0.0
     commission_asset: str = "USDT"
 
     # Error handling
-    error_message: Optional[str] = None
+    error_message: str | None = None
     retry_count: int = 0
     max_retries: int = 3
 
     # Timeout management
     timeout_seconds: int = 300  # 5 minutes default timeout
-    timeout_at: Optional[datetime] = None
+    timeout_at: datetime | None = None
 
     # Exchange flags
     reduce_only: bool = False
@@ -232,7 +232,7 @@ class Order:
             f"to {self.timeout_at} (+{additional_seconds}s)"
         )
 
-    def update_status(self, new_status: OrderStatus, error: Optional[str] = None):
+    def update_status(self, new_status: OrderStatus, error: str | None = None):
         """
         Update order status with validation.
 
@@ -339,7 +339,7 @@ class Order:
         self.retry_count += 1
         logger.info(f"Order {self.order_id} retry {self.retry_count}/{self.max_retries}")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert order to dictionary."""
         return {
             "order_id": self.order_id,
@@ -417,8 +417,8 @@ class TrailingStopOrder(Order):
 
     trailing_distance: float = 0.0  # Distance to trail (in price or percentage)
     trailing_percent: bool = False  # Use percentage instead of absolute
-    highest_price: Optional[float] = None  # Highest price seen (for buy trailing)
-    lowest_price: Optional[float] = None  # Lowest price seen (for sell trailing)
+    highest_price: float | None = None  # Highest price seen (for buy trailing)
+    lowest_price: float | None = None  # Lowest price seen (for sell trailing)
 
     def __post_init__(self):
         super().__post_init__()

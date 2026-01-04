@@ -19,28 +19,27 @@ import json
 import logging
 import os
 import sys
-from typing import Any, List, Optional
 
 # MCP SDK
 try:
-    from mcp.server.models import InitializationOptions
-    from mcp.server import NotificationOptions, Server
-    from mcp.server.stdio import stdio_server
     from mcp import types
+    from mcp.server import NotificationOptions, Server
+    from mcp.server.models import InitializationOptions
+    from mcp.server.stdio import stdio_server
 except ImportError:
     print("Error: MCP SDK not installed. Run: pip install mcp", file=sys.stderr)
     sys.exit(1)
 
 # Project imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.websocket.data_stream import WebSocketDataStream, StreamConfig, Exchange
+from src.websocket.data_stream import Exchange, StreamConfig, WebSocketDataStream
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Global stream instance
-stream: Optional[WebSocketDataStream] = None
+stream: WebSocketDataStream | None = None
 
 
 async def initialize_stream():
@@ -50,7 +49,7 @@ async def initialize_stream():
         config = StreamConfig(
             exchange=Exchange.BINANCE,
             symbols=["BTC/USDT", "ETH/USDT"],
-            channels=["ticker", "trade"]
+            channels=["ticker", "trade"],
         )
         stream = WebSocketDataStream(config)
         # Run stream in background
@@ -113,24 +112,32 @@ async def handle_call_tool(
     name: str, arguments: dict | None
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Обработка вызовов инструментов."""
-    
+
     await initialize_stream()
-    
+
     try:
         if name == "subscribe":
             symbol = arguments.get("symbol")
             await stream.subscribe_symbol(symbol)
-            return [types.TextContent(type="text", text=json.dumps({"success": True, "subscribed": symbol}))]
-        
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps({"success": True, "subscribed": symbol})
+                )
+            ]
+
         elif name == "unsubscribe":
             symbol = arguments.get("symbol")
             await stream.unsubscribe_symbol(symbol)
-            return [types.TextContent(type="text", text=json.dumps({"success": True, "unsubscribed": symbol}))]
-        
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps({"success": True, "unsubscribed": symbol})
+                )
+            ]
+
         elif name == "get_stream_status":
             stats = stream.get_stats()
             health = await stream.health_check()
-            
+
             result = {
                 "success": True,
                 "status": health["status"],
@@ -140,21 +147,28 @@ async def handle_call_tool(
                 "mps": stats["messages_per_second"],
                 "subscribed_symbols": stats["subscribed_symbols"],
             }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         else:
-            return [types.TextContent(type="text", text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}))]
-            
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}),
+                )
+            ]
+
     except Exception as e:
         logger.error(f"Error in {name}: {e}")
-        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))]
+        return [
+            types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))
+        ]
 
 
 async def main():
     """Запуск MCP сервера."""
     logger.info("Starting WebSocket Stream MCP Server...")
-    
+
     try:
         async with stdio_server() as (read_stream, write_stream):
             await server.run(

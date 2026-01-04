@@ -6,15 +6,13 @@ Ensures data integrity and quality for reliable backtesting.
 """
 
 import logging
-from typing import List, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-def validate_ohlcv(df: pd.DataFrame, strict: bool = False) -> Tuple[bool, List[str]]:
+def validate_ohlcv(df: pd.DataFrame, strict: bool = False) -> tuple[bool, list[str]]:
     """
     Validate OHLCV data for common issues.
 
@@ -109,7 +107,7 @@ def validate_ohlcv(df: pd.DataFrame, strict: bool = False) -> Tuple[bool, List[s
     return is_valid, issues
 
 
-def check_data_integrity(df: pd.DataFrame, expected_timeframe: str = "5m") -> Tuple[bool, dict]:
+def check_data_integrity(df: pd.DataFrame, expected_timeframe: str = "5m") -> tuple[bool, dict]:
     """
     Check data completeness and detect gaps.
 
@@ -171,7 +169,7 @@ def check_data_integrity(df: pd.DataFrame, expected_timeframe: str = "5m") -> Tu
             f"({gap_info['completeness_pct']:.1f}% complete)"
         )
     else:
-        logger.info(f"Data integrity check passed: 100% complete")
+        logger.info("Data integrity check passed: 100% complete")
 
     return has_gaps, gap_info
 

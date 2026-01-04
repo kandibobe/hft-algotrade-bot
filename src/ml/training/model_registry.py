@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,30 +40,30 @@ class ModelMetadata:
     metadata_path: str = ""
 
     # Performance metrics
-    metrics: Dict[str, float] = field(default_factory=dict)
-    backtest_results: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
+    backtest_results: dict[str, Any] = field(default_factory=dict)
 
     # Training info
     trained_at: datetime = field(default_factory=datetime.now)
     trained_by: str = "unknown"
-    training_config: Dict[str, Any] = field(default_factory=dict)
+    training_config: dict[str, Any] = field(default_factory=dict)
 
     # Feature info
     feature_count: int = 0
-    feature_names: List[str] = field(default_factory=list)
+    feature_names: list[str] = field(default_factory=list)
 
     # Validation
     validation_passed: bool = False
     validation_notes: str = ""
 
     # Deployment
-    deployed_at: Optional[datetime] = None
+    deployed_at: datetime | None = None
     deployment_notes: str = ""
 
     # Tags
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "name": self.name,
@@ -125,7 +125,7 @@ class ModelRegistry:
         self.registry_dir.mkdir(parents=True, exist_ok=True)
 
         self.registry_file = self.registry_dir / "registry.json"
-        self.models: Dict[str, List[ModelMetadata]] = {}
+        self.models: dict[str, list[ModelMetadata]] = {}
 
         # Load existing registry
         self._load_registry()
@@ -134,12 +134,12 @@ class ModelRegistry:
         self,
         model_name: str,
         model_path: str,
-        version: Optional[str] = None,
-        metrics: Optional[Dict[str, float]] = None,
-        backtest_results: Optional[Dict[str, Any]] = None,
-        training_config: Optional[Dict[str, Any]] = None,
-        feature_names: Optional[List[str]] = None,
-        tags: Optional[List[str]] = None,
+        version: str | None = None,
+        metrics: dict[str, float] | None = None,
+        backtest_results: dict[str, Any] | None = None,
+        training_config: dict[str, Any] | None = None,
+        feature_names: list[str] | None = None,
+        tags: list[str] | None = None,
     ) -> ModelMetadata:
         """
         Register a new model.
@@ -207,7 +207,7 @@ class ModelRegistry:
         self,
         model_name: str,
         version: str,
-        min_metrics: Optional[Dict[str, float]] = None,
+        min_metrics: dict[str, float] | None = None,
         min_backtest_sharpe: float = 1.0,
         min_backtest_trades: int = 10,
     ) -> bool:
@@ -327,9 +327,9 @@ class ModelRegistry:
         """
         logger.warning(f"Rolling back {model_name} to v{version}")
 
-        return self.promote_to_production(model_name, version, notes=f"Rolled back from production")
+        return self.promote_to_production(model_name, version, notes="Rolled back from production")
 
-    def get_production_model(self, model_name: str) -> Optional[ModelMetadata]:
+    def get_production_model(self, model_name: str) -> ModelMetadata | None:
         """
         Get current production model.
 
@@ -348,7 +348,7 @@ class ModelRegistry:
 
         return None
 
-    def get_all_versions(self, model_name: str) -> List[ModelMetadata]:
+    def get_all_versions(self, model_name: str) -> list[ModelMetadata]:
         """
         Get all versions of a model.
 
@@ -363,7 +363,7 @@ class ModelRegistry:
 
         return sorted(self.models[model_name], key=lambda m: m.trained_at, reverse=True)
 
-    def get_model_history(self, model_name: str) -> Dict[str, Any]:
+    def get_model_history(self, model_name: str) -> dict[str, Any]:
         """
         Get model version history.
 
@@ -404,7 +404,7 @@ class ModelRegistry:
         metadata = self._get_model(model_name, version)
         if metadata:
             if metadata.status == ModelStatus.PRODUCTION:
-                logger.error("Cannot archive production model. " "Promote another version first.")
+                logger.error("Cannot archive production model. Promote another version first.")
                 return
 
             metadata.status = ModelStatus.ARCHIVED
@@ -447,7 +447,7 @@ class ModelRegistry:
 
         logger.info(f"Deleted {model_name} v{version} from registry")
 
-    def _get_model(self, model_name: str, version: str) -> Optional[ModelMetadata]:
+    def _get_model(self, model_name: str, version: str) -> ModelMetadata | None:
         """Get model metadata by name and version."""
         if model_name not in self.models:
             return None
@@ -561,7 +561,7 @@ class ModelRegistry:
         try:
             with open(temp_file, "w") as f:
                 json.dump(data, f, indent=2)
-            
+
             # Atomic rename (replace)
             temp_file.replace(self.registry_file)
             logger.debug(f"Saved registry to {self.registry_file}")

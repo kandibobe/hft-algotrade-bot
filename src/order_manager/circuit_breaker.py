@@ -16,10 +16,9 @@ License: MIT
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +76,8 @@ class TripEvent:
     timestamp: datetime
     reason: TripReason
     details: str
-    metrics: Dict
-    reset_at: Optional[datetime] = None
+    metrics: dict
+    reset_at: datetime | None = None
 
 
 class CircuitBreaker:
@@ -107,7 +106,7 @@ class CircuitBreaker:
         breaker.check_and_trip(current_pnl, max_drawdown)
     """
 
-    def __init__(self, config: Optional[CircuitBreakerConfig] = None):
+    def __init__(self, config: CircuitBreakerConfig | None = None):
         """
         Initialize circuit breaker.
 
@@ -125,11 +124,11 @@ class CircuitBreaker:
         self.consecutive_errors: int = 0
 
         # Order rate tracking
-        self.order_timestamps: List[datetime] = []
+        self.order_timestamps: list[datetime] = []
 
         # Trip history
-        self.trip_history: List[TripEvent] = []
-        self.last_trip: Optional[TripEvent] = None
+        self.trip_history: list[TripEvent] = []
+        self.last_trip: TripEvent | None = None
         self.trip_count_today: int = 0
 
         # Reset tracking
@@ -265,7 +264,7 @@ class CircuitBreaker:
             logger.info("Clearing error counter")
             self.consecutive_errors = 0
 
-    def update_balance(self, current: float, peak: Optional[float] = None):
+    def update_balance(self, current: float, peak: float | None = None):
         """
         Update balance for drawdown calculation.
 
@@ -313,7 +312,7 @@ class CircuitBreaker:
             f"({'manual' if manual else 'automatic'})"
         )
 
-    def _trip(self, reason: TripReason, details: str, metrics: Dict) -> bool:
+    def _trip(self, reason: TripReason, details: str, metrics: dict) -> bool:
         """
         Trip the circuit breaker (halt trading).
 
@@ -412,7 +411,7 @@ class CircuitBreaker:
         # Placeholder for notification system
         logger.critical(f"ALERT: Circuit breaker tripped - {trip_event.reason.value}")
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         """Get current circuit breaker status."""
         return {
             "state": self.state.value,

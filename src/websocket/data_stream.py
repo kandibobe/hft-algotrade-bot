@@ -21,16 +21,16 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any
 
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from .exchange_types import Exchange
 from .data_types import IWebSocketClient, TickerData, TradeData
 from .exchange_handlers import ExchangeHandler, create_exchange_handler
+from .exchange_types import Exchange
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +40,8 @@ class StreamConfig:
     """Configuration for WebSocket stream."""
 
     exchange: Exchange
-    symbols: List[str]
-    channels: List[str] = field(default_factory=lambda: ["ticker", "trade"])
+    symbols: list[str]
+    channels: list[str] = field(default_factory=lambda: ["ticker", "trade"])
     reconnect_delay: float = 1.0
     max_reconnect_delay: float = 60.0
     ping_interval: float = 30.0
@@ -58,8 +58,6 @@ class StreamConfig:
             Exchange.KRAKEN: "wss://ws.kraken.com",
         }
         return urls.get(self.exchange, "")
-
-
 
 
 class WebSocketDataStream:
@@ -85,7 +83,7 @@ class WebSocketDataStream:
             await stream.stop()
     """
 
-    def __init__(self, config: StreamConfig, websocket_client: Optional[IWebSocketClient] = None):
+    def __init__(self, config: StreamConfig, websocket_client: IWebSocketClient | None = None):
         """
         Initialize WebSocket data stream with dependency injection.
 
@@ -94,7 +92,7 @@ class WebSocketDataStream:
             websocket_client: WebSocket client instance (implements IWebSocketClient)
         """
         self.config = config
-        self._ws: Optional[IWebSocketClient] = None
+        self._ws: IWebSocketClient | None = None
         self._websocket_client = websocket_client
         self._running = False
         self._reconnect_delay = config.reconnect_delay
@@ -103,9 +101,9 @@ class WebSocketDataStream:
         self._exchange_handler: ExchangeHandler = create_exchange_handler(config.exchange)
 
         # Callback handlers
-        self._ticker_handlers: List[Callable[[TickerData], Any]] = []
-        self._trade_handlers: List[Callable[[TradeData], Any]] = []
-        self._error_handlers: List[Callable[[Exception], Any]] = []
+        self._ticker_handlers: list[Callable[[TickerData], Any]] = []
+        self._trade_handlers: list[Callable[[TradeData], Any]] = []
+        self._error_handlers: list[Callable[[Exception], Any]] = []
 
         # Message queue for buffering
         self._message_queue: asyncio.Queue = asyncio.Queue(maxsize=config.max_queue_size)
@@ -121,7 +119,7 @@ class WebSocketDataStream:
         }
 
         # Subscribed symbols tracking
-        self._subscribed: Set[str] = set()
+        self._subscribed: set[str] = set()
 
         # Validate websocket_client implements interface
         if self._websocket_client and not isinstance(self._websocket_client, IWebSocketClient):
@@ -179,7 +177,7 @@ class WebSocketDataStream:
     async def stop(self):
         """Stop the WebSocket stream and clean up resources."""
         self._running = False
-        
+
         # Close WebSocket connection if it exists
         if self._ws:
             try:
@@ -189,7 +187,7 @@ class WebSocketDataStream:
                 logger.warning(f"Error closing WebSocket: {e}")
             finally:
                 self._ws = None
-        
+
         # Clear message queue to prevent memory leaks
         while not self._message_queue.empty():
             try:
@@ -197,12 +195,12 @@ class WebSocketDataStream:
                 self._message_queue.task_done()
             except asyncio.QueueEmpty:
                 break
-        
+
         # Clear handlers to prevent reference cycles
         self._ticker_handlers.clear()
         self._trade_handlers.clear()
         self._error_handlers.clear()
-        
+
         logger.info("WebSocket stream stopped and cleaned up")
 
     async def _connect(self):
@@ -351,7 +349,7 @@ class WebSocketDataStream:
     # Health & Statistics
     # =========================================================================
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get stream statistics."""
         uptime = time.time() - self._stats["uptime_start"] if self._stats["uptime_start"] else 0
         return {
@@ -363,7 +361,7 @@ class WebSocketDataStream:
             "messages_per_second": (self._stats["messages_received"] / max(1, uptime)),
         }
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Perform health check."""
         last_msg_age = time.time() - self._stats["last_message_time"]
 

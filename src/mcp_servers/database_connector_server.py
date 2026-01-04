@@ -18,14 +18,13 @@ import json
 import logging
 import os
 import sys
-from typing import Any
 
 # MCP SDK
 try:
-    from mcp.server.models import InitializationOptions
-    from mcp.server import NotificationOptions, Server
-    from mcp.server.stdio import stdio_server
     from mcp import types
+    from mcp.server import NotificationOptions, Server
+    from mcp.server.models import InitializationOptions
+    from mcp.server.stdio import stdio_server
 except ImportError:
     print("Error: MCP SDK not installed. Run: pip install mcp", file=sys.stderr)
     sys.exit(1)
@@ -100,22 +99,22 @@ async def handle_call_tool(
     name: str, arguments: dict | None
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Обработка вызовов инструментов."""
-    
+
     initialize_db()
-    
+
     try:
         if name == "execute_query":
             query = arguments.get("query", "")
             params = arguments.get("params", {})
-            
+
             with db_config.get_session() as session:
                 result_proxy = session.execute(query, params)
-                
+
                 # Проверяем тип запроса
                 if query.strip().upper().startswith("SELECT"):
                     rows = result_proxy.fetchall()
                     columns = result_proxy.keys()
-                    
+
                     result = {
                         "success": True,
                         "rows": [dict(zip(columns, row)) for row in rows],
@@ -129,24 +128,24 @@ async def handle_call_tool(
                         "affected_rows": result_proxy.rowcount,
                         "message": "Query executed successfully",
                     }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "get_pool_status":
             status = get_pool_status()
-            
+
             result = {
                 "success": True,
                 "pool_status": status,
             }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "health_check":
             try:
                 with db_config.get_session() as session:
                     session.execute("SELECT 1")
-                
+
                 result = {
                     "success": True,
                     "status": "healthy",
@@ -158,9 +157,9 @@ async def handle_call_tool(
                     "status": "unhealthy",
                     "error": str(e),
                 }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         else:
             return [
                 types.TextContent(
@@ -168,17 +167,19 @@ async def handle_call_tool(
                     text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}),
                 )
             ]
-    
+
     except Exception as e:
         logger.error(f"Error in {name}: {e}", exc_info=True)
         return [
             types.TextContent(
                 type="text",
-                text=json.dumps({
-                    "success": False,
-                    "error": str(e),
-                    "tool": name,
-                }),
+                text=json.dumps(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "tool": name,
+                    }
+                ),
             )
         ]
 
@@ -186,7 +187,7 @@ async def handle_call_tool(
 async def main():
     """Запуск MCP сервера."""
     logger.info("Starting Database Connector MCP Server...")
-    
+
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,

@@ -17,13 +17,12 @@ License: MIT
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 import numpy as np
 
+from src.ml.meta_learning import MetaLearningConfig, MetaLearningEnsemble
 from src.ml.online_learner import OnlineLearner, OnlineLearningConfig
-from src.ml.meta_learning import MetaLearningEnsemble, MetaLearningConfig
-from src.ml.model_loader import ModelLoader
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +35,9 @@ class OnlineMetaEnsemble:
 
     def __init__(
         self,
-        base_model_paths: List[str],
-        online_learning_config: Optional[OnlineLearningConfig] = None,
-        meta_learning_config: Optional[MetaLearningConfig] = None,
+        base_model_paths: list[str],
+        online_learning_config: OnlineLearningConfig | None = None,
+        meta_learning_config: MetaLearningConfig | None = None,
     ):
         """
         Initialize the Online Meta Ensemble.
@@ -59,9 +58,7 @@ class OnlineMetaEnsemble:
             base_models=base_models_for_meta, config=meta_learning_config
         )
 
-        logger.info(
-            f"Initialized OnlineMetaEnsemble with {len(self.online_learners)} base models."
-        )
+        logger.info(f"Initialized OnlineMetaEnsemble with {len(self.online_learners)} base models.")
 
     def predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -111,7 +108,7 @@ class OnlineMetaEnsemble:
             # self.meta_learner.train_with_validation_split(X_recent, y_recent)
             pass
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         Get the status of the ensemble.
 

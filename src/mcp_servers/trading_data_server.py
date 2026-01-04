@@ -19,14 +19,13 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Dict
 
 # MCP SDK
 try:
-    from mcp.server.models import InitializationOptions
-    from mcp.server import NotificationOptions, Server
-    from mcp.server.stdio import stdio_server
     from mcp import types
+    from mcp.server import NotificationOptions, Server
+    from mcp.server.models import InitializationOptions
+    from mcp.server.stdio import stdio_server
 except ImportError:
     print("Error: MCP SDK not installed. Run: pip install mcp", file=sys.stderr)
     sys.exit(1)
@@ -46,10 +45,10 @@ fetcher: AsyncDataFetcher = None
 async def initialize_fetcher():
     """Инициализация fetcher с API ключами из переменных окружения."""
     global fetcher
-    
+
     if fetcher is not None:
         return
-    
+
     config = FetcherConfig(
         exchange="binance",
         api_key=os.getenv("BINANCE_API_KEY"),
@@ -57,7 +56,7 @@ async def initialize_fetcher():
         rate_limit=True,
         max_retries=5,
     )
-    
+
     fetcher = AsyncDataFetcher(config)
     await fetcher.connect()
     logger.info("Trading data fetcher initialized")
@@ -178,18 +177,18 @@ async def handle_call_tool(
     name: str, arguments: dict | None
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Обработка вызовов инструментов."""
-    
+
     # Инициализация fetcher при первом вызове
     await initialize_fetcher()
-    
+
     try:
         if name == "fetch_ohlcv":
             symbol = arguments.get("symbol")
             timeframe = arguments.get("timeframe", "1h")
             limit = arguments.get("limit", 500)
-            
+
             df = await fetcher.fetch_ohlcv(symbol, timeframe, limit=limit)
-            
+
             if df.empty:
                 result = {
                     "success": False,
@@ -217,13 +216,13 @@ async def handle_call_tool(
                         },
                     },
                 }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "fetch_ticker":
             symbol = arguments.get("symbol")
             ticker = await fetcher.fetch_ticker(symbol)
-            
+
             result = {
                 "success": True,
                 "symbol": symbol,
@@ -237,15 +236,15 @@ async def handle_call_tool(
                     "low_24h": ticker.get("low"),
                 },
             }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "fetch_orderbook":
             symbol = arguments.get("symbol")
             limit = arguments.get("limit", 20)
-            
+
             orderbook = await fetcher.fetch_orderbook(symbol, limit)
-            
+
             result = {
                 "success": True,
                 "symbol": symbol,
@@ -254,23 +253,23 @@ async def handle_call_tool(
                 "asks": orderbook["asks"][:10],
                 "bid_ask_spread": float(orderbook["asks"][0][0]) - float(orderbook["bids"][0][0]),
             }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "fetch_multiple_pairs":
             symbols = arguments.get("symbols", [])
             timeframe = arguments.get("timeframe", "1h")
             limit = arguments.get("limit", 500)
-            
+
             data = await fetcher.fetch_multiple(symbols, timeframe, limit)
-            
+
             result = {
                 "success": True,
                 "timeframe": timeframe,
                 "pairs_fetched": len(data),
                 "pairs": {},
             }
-            
+
             for symbol, df in data.items():
                 if not df.empty:
                     result["pairs"][symbol] = {
@@ -281,9 +280,9 @@ async def handle_call_tool(
                     }
                 else:
                     result["pairs"][symbol] = {"error": "No data"}
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "get_exchange_status":
             status = {
                 "success": True,
@@ -291,9 +290,9 @@ async def handle_call_tool(
                 "exchange": fetcher.config.exchange,
                 "rate_limit_enabled": fetcher.config.rate_limit,
             }
-            
+
             return [types.TextContent(type="text", text=json.dumps(status, indent=2))]
-        
+
         else:
             return [
                 types.TextContent(
@@ -301,17 +300,19 @@ async def handle_call_tool(
                     text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}),
                 )
             ]
-    
+
     except Exception as e:
         logger.error(f"Error in {name}: {e}", exc_info=True)
         return [
             types.TextContent(
                 type="text",
-                text=json.dumps({
-                    "success": False,
-                    "error": str(e),
-                    "tool": name,
-                }),
+                text=json.dumps(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "tool": name,
+                    }
+                ),
             )
         ]
 
@@ -319,7 +320,7 @@ async def handle_call_tool(
 async def main():
     """Запуск MCP сервера."""
     logger.info("Starting Trading Data MCP Server...")
-    
+
     try:
         async with stdio_server() as (read_stream, write_stream):
             await server.run(

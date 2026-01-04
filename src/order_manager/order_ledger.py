@@ -38,10 +38,9 @@ import json
 import logging
 import sqlite3
 from contextlib import contextmanager
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     from src.order_manager.models import Order, OrderSide, OrderStatus, OrderType
@@ -170,7 +169,7 @@ class OrderLedger:
     def store_order(
         self,
         order: Any,  # Order object
-        idempotency_key: Optional[str] = None,
+        idempotency_key: str | None = None,
     ) -> bool:
         """
         Store order in ledger.
@@ -236,7 +235,7 @@ class OrderLedger:
         self,
         order_id: str,
         new_status: str,
-        update_data: Optional[Dict] = None,
+        update_data: dict | None = None,
     ):
         """
         Update order status and record change.
@@ -283,7 +282,7 @@ class OrderLedger:
 
         logger.info(f"Updated order {order_id}: {old_status} → {new_status}")
 
-    def get_order(self, order_id: str) -> Optional[Dict]:
+    def get_order(self, order_id: str) -> dict | None:
         """
         Retrieve order by ID.
 
@@ -303,7 +302,7 @@ class OrderLedger:
                 return order_dict
             return None
 
-    def get_active_orders(self) -> List[Dict]:
+    def get_active_orders(self) -> list[dict]:
         """
         Get all active orders (pending, partially filled).
 
@@ -326,7 +325,7 @@ class OrderLedger:
 
             return orders
 
-    def get_orders_by_symbol(self, symbol: str, limit: int = 100) -> List[Dict]:
+    def get_orders_by_symbol(self, symbol: str, limit: int = 100) -> list[dict]:
         """
         Get recent orders for a symbol.
 
@@ -356,7 +355,7 @@ class OrderLedger:
 
             return orders
 
-    def get_order_history(self, order_id: str) -> List[Dict]:
+    def get_order_history(self, order_id: str) -> list[dict]:
         """
         Get update history for an order.
 
@@ -384,7 +383,7 @@ class OrderLedger:
 
             return history
 
-    def get_statistics(self, start_date: Optional[datetime] = None) -> Dict:
+    def get_statistics(self, start_date: datetime | None = None) -> dict:
         """
         Get order statistics.
 
@@ -463,7 +462,7 @@ class OrderLedger:
 
 # Convenience function
 def create_idempotency_key(
-    symbol: str, side: str, quantity: float, timestamp: Optional[datetime] = None
+    symbol: str, side: str, quantity: float, timestamp: datetime | None = None
 ) -> str:
     """
     Generate idempotency key for an order.

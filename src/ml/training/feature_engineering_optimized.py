@@ -23,8 +23,6 @@ Usage:
 """
 
 import logging
-from dataclasses import dataclass
-from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -68,7 +66,9 @@ class OptimizedFeatureEngineer(FeatureEngineer):
         # Price position (fully vectorized)
         range_ = high - low
         df["price_position"] = np.where(
-            range_ > 1e-10, (close - low) / range_, 0.5  # Default to mid if range is zero
+            range_ > 1e-10,
+            (close - low) / range_,
+            0.5,  # Default to mid if range is zero
         )
 
         # Gap and intraday return (vectorized)

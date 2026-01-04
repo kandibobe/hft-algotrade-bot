@@ -29,10 +29,11 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
@@ -59,13 +60,12 @@ class ExchangeConfig(BaseModel):
     sandbox: bool = Field(
         default=True, description="Use testnet/sandbox mode (CRITICAL for testing!)"
     )
-    api_key: Optional[str] = Field(
-        default_factory=lambda: os.getenv("BINANCE_API_KEY"),
-        description="API key (keep secret!)"
+    api_key: str | None = Field(
+        default_factory=lambda: os.getenv("BINANCE_API_KEY"), description="API key (keep secret!)"
     )
-    api_secret: Optional[str] = Field(
+    api_secret: str | None = Field(
         default_factory=lambda: os.getenv("BINANCE_API_SECRET"),
-        description="API secret (keep secret!)"
+        description="API secret (keep secret!)",
     )
     rate_limit: bool = Field(default=True, description="Enable rate limiting to avoid bans")
     timeout_ms: int = Field(
@@ -181,7 +181,7 @@ class TradingConfig(BaseModel):
     dry_run: bool = Field(
         default=True, description="CRITICAL: Set to False only for live trading with real money!"
     )
-    pairs: List[str] = Field(default=["BTC/USDT"], min_length=1, description="Trading pairs")
+    pairs: list[str] = Field(default=["BTC/USDT"], min_length=1, description="Trading pairs")
     timeframe: str = Field(default="1h", description="Main trading timeframe")
     stake_currency: str = Field(default="USDT", description="Quote currency for stake")
     stake_amount: float = Field(default=100.0, ge=1.0, description="Stake amount per trade")
@@ -235,7 +235,7 @@ class TradingConfig(BaseModel):
         def validate_live_trading(self):
             if not self.dry_run and self.exchange.sandbox:
                 logger.warning(
-                    "dry_run=False but sandbox=True. " "This will trade on testnet, not mainnet."
+                    "dry_run=False but sandbox=True. This will trade on testnet, not mainnet."
                 )
             if not self.dry_run and self.leverage > 1.0:
                 logger.warning(
@@ -273,23 +273,22 @@ class TradingConfig(BaseModel):
 
             if not dry_run and exchange.sandbox:
                 logger.warning(
-                    "dry_run=False but sandbox=True. " "This will trade on testnet, not mainnet."
+                    "dry_run=False but sandbox=True. This will trade on testnet, not mainnet."
                 )
             if not dry_run and leverage > 1.0:
                 logger.warning(
-                    f"LIVE TRADING with {leverage}x leverage! "
-                    f"Make sure you understand the risks."
+                    f"LIVE TRADING with {leverage}x leverage! Make sure you understand the risks."
                 )
             return values
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         if PYDANTIC_V2:
             return self.model_dump()
         else:
             return self.dict()
 
-    def to_json(self, path: Optional[str] = None) -> str:
+    def to_json(self, path: str | None = None) -> str:
         """Export to JSON."""
         if PYDANTIC_V2:
             json_str = self.model_dump_json(indent=2)
@@ -321,7 +320,7 @@ class TradingConfig(BaseModel):
             data = yaml.safe_load(f)
         return cls(**data)
 
-    def validate_for_live_trading(self) -> List[str]:
+    def validate_for_live_trading(self) -> list[str]:
         """
         Validate config is safe for live trading.
 
@@ -349,15 +348,23 @@ class TradingConfig(BaseModel):
 
         # Position size limits for live trading
         if self.risk.max_position_pct > 0.25 and not self.dry_run:
-            issues.append(f"Large position size ({self.risk.max_position_pct:.0%}) - max 25% recommended for live trading")
+            issues.append(
+                f"Large position size ({self.risk.max_position_pct:.0%}) - max 25% recommended for live trading"
+            )
         elif self.risk.max_position_pct > 0.50:
-            issues.append(f"Very large position size ({self.risk.max_position_pct:.0%}) - max 50% allowed")
+            issues.append(
+                f"Very large position size ({self.risk.max_position_pct:.0%}) - max 50% allowed"
+            )
 
         # Risk limits
         if self.risk.max_drawdown_pct > 0.30:
-            issues.append(f"High max drawdown ({self.risk.max_drawdown_pct:.0%}) - max 30% recommended")
+            issues.append(
+                f"High max drawdown ({self.risk.max_drawdown_pct:.0%}) - max 30% recommended"
+            )
         if self.risk.max_daily_loss_pct > 0.10:
-            issues.append(f"High daily loss limit ({self.risk.max_daily_loss_pct:.0%}) - max 10% recommended")
+            issues.append(
+                f"High daily loss limit ({self.risk.max_daily_loss_pct:.0%}) - max 10% recommended"
+            )
 
         # Strategy safety
         if not self.use_regime_filter:

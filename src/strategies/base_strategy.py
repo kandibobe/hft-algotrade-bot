@@ -12,9 +12,8 @@ Provides common functionality for all strategies:
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ class StrategyConfig:
     aggressive_mode_threshold: float = 70.0
     defensive_mode_threshold: float = 40.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "risk_per_trade": self.risk_per_trade,
@@ -79,7 +78,7 @@ class BaseStrategy(ABC):
     - Logging
     """
 
-    def __init__(self, config: Optional[StrategyConfig] = None):
+    def __init__(self, config: StrategyConfig | None = None):
         self.config = config or StrategyConfig()
         self._current_regime = None
         self._regime_params = {}
@@ -204,7 +203,7 @@ class BaseStrategy(ABC):
             stop_loss_price=stop_price,
         )
 
-    def get_roi_table(self) -> Dict[str, float]:
+    def get_roi_table(self) -> dict[str, float]:
         """
         Get ROI table for Freqtrade.
         """
@@ -230,5 +229,5 @@ class BaseStrategy(ABC):
         """Log trade exit for debugging."""
         emoji = "✅" if profit_pct > 0 else "❌"
         logger.info(
-            f"{emoji} EXIT: {pair} @ {price:.2f} | Profit: {profit_pct:.2f}% | " f"Reason: {reason}"
+            f"{emoji} EXIT: {pair} @ {price:.2f} | Profit: {profit_pct:.2f}% | Reason: {reason}"
         )

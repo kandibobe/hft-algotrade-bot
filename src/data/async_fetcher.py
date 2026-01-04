@@ -21,11 +21,10 @@ Usage:
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
-import numpy as np
 import pandas as pd
 
 try:
@@ -61,8 +60,8 @@ class FetcherConfig:
     sandbox: bool = False  # Use testnet
 
     # API credentials (optional for public data)
-    api_key: Optional[str] = None
-    api_secret: Optional[str] = None
+    api_key: str | None = None
+    api_secret: str | None = None
 
     # Rate limiting
     rate_limit: bool = True
@@ -98,14 +97,14 @@ class AsyncDataFetcher:
         await fetcher.close()
     """
 
-    def __init__(self, config: Optional[FetcherConfig] = None):
+    def __init__(self, config: FetcherConfig | None = None):
         """Initialize async fetcher."""
         if not CCXT_ASYNC_AVAILABLE:
             raise ImportError("ccxt.async_support not available. Install with: pip install ccxt")
 
         self.config = config or FetcherConfig()
-        self.exchange: Optional[Any] = None
-        self._semaphore: Optional[asyncio.Semaphore] = None
+        self.exchange: Any | None = None
+        self._semaphore: asyncio.Semaphore | None = None
         self._connected = False
 
     async def __aenter__(self):
@@ -159,7 +158,7 @@ class AsyncDataFetcher:
         self,
         symbol: str,
         timeframe: str = "1h",
-        since: Optional[int] = None,
+        since: int | None = None,
         limit: int = 1000,
     ) -> pd.DataFrame:
         """
@@ -194,9 +193,9 @@ class AsyncDataFetcher:
         self,
         symbol: str,
         timeframe: str,
-        since: Optional[int],
+        since: int | None,
         limit: int,
-    ) -> List:
+    ) -> list:
         """
         Fetch OHLCV with tenacity retry logic.
 
@@ -238,7 +237,7 @@ class AsyncDataFetcher:
                         self.config.retry_min_wait * (2**attempt), self.config.retry_max_wait
                     )
                     logger.warning(
-                        f"Rate limited on attempt {attempt + 1}. " f"Waiting {wait_time:.1f}s..."
+                        f"Rate limited on attempt {attempt + 1}. Waiting {wait_time:.1f}s..."
                     )
                     await asyncio.sleep(wait_time)
                 elif any(x in error_str for x in ["not available", "maintenance"]):
@@ -257,10 +256,10 @@ class AsyncDataFetcher:
 
     async def fetch_multiple(
         self,
-        symbols: List[str],
+        symbols: list[str],
         timeframe: str = "1h",
         limit: int = 1000,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         """
         Fetch OHLCV data for multiple symbols concurrently.
 
@@ -293,7 +292,7 @@ class AsyncDataFetcher:
         self,
         symbol: str,
         limit: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Fetch current order book.
 
@@ -322,7 +321,7 @@ class AsyncDataFetcher:
 
         raise Exception(f"Failed to fetch orderbook for {symbol}")
 
-    async def fetch_ticker(self, symbol: str) -> Dict[str, Any]:
+    async def fetch_ticker(self, symbol: str) -> dict[str, Any]:
         """
         Fetch current ticker (price, volume, etc.).
 
@@ -338,7 +337,7 @@ class AsyncDataFetcher:
         async with self._semaphore:
             return await self.exchange.fetch_ticker(symbol)
 
-    async def fetch_balance(self) -> Dict[str, Any]:
+    async def fetch_balance(self) -> dict[str, Any]:
         """
         Fetch account balance (requires API credentials).
 
@@ -359,7 +358,7 @@ class AsyncDataFetcher:
         symbol: str,
         timeframe: str,
         start_date: datetime,
-        end_date: Optional[datetime] = None,
+        end_date: datetime | None = None,
     ) -> pd.DataFrame:
         """
         Fetch historical OHLCV data across multiple API calls.
@@ -419,16 +418,15 @@ class AsyncDataFetcher:
         # Ensure timezone-naive comparison if needed
         start_ts = pd.Timestamp(start_date)
         end_ts = pd.Timestamp(end_date)
-        
+
         if combined.index.tz is not None:
-            if start_ts.tz is None: start_ts = start_ts.tz_localize(combined.index.tz)
-            if end_ts.tz is None: end_ts = end_ts.tz_localize(combined.index.tz)
+            if start_ts.tz is None:
+                start_ts = start_ts.tz_localize(combined.index.tz)
+            if end_ts.tz is None:
+                end_ts = end_ts.tz_localize(combined.index.tz)
 
         # Filter to exact date range
-        combined = combined[
-            (combined.index >= start_ts)
-            & (combined.index <= end_ts)
-        ]
+        combined = combined[(combined.index >= start_ts) & (combined.index <= end_ts)]
 
         logger.info(
             f"Fetched {len(combined)} historical candles for {symbol} "
@@ -469,15 +467,15 @@ class AsyncOrderExecutor:
 
     def __init__(
         self,
-        config: Optional[FetcherConfig] = None,
-        smart_limit_config: Optional[Any] = None,
+        config: FetcherConfig | None = None,
+        smart_limit_config: Any | None = None,
     ):
         """Initialize async order executor."""
         self.config = config or FetcherConfig()
         self.smart_limit_config = smart_limit_config
-        self.exchange: Optional[Any] = None
+        self.exchange: Any | None = None
         self._connected = False
-        self._semaphore: Optional[asyncio.Semaphore] = None
+        self._semaphore: asyncio.Semaphore | None = None
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -530,8 +528,8 @@ class AsyncOrderExecutor:
         side: str,
         amount: float,
         price: float,
-        params: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
+        params: dict | None = None,
+    ) -> dict[str, Any]:
         """
         Create limit order with retry logic.
 
@@ -558,8 +556,8 @@ class AsyncOrderExecutor:
         symbol: str,
         side: str,
         amount: float,
-        params: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
+        params: dict | None = None,
+    ) -> dict[str, Any]:
         """
         Create market order with retry logic.
 
@@ -584,7 +582,7 @@ class AsyncOrderExecutor:
         self,
         order_id: str,
         symbol: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Cancel order."""
         if not self._connected:
             await self.connect()
@@ -596,7 +594,7 @@ class AsyncOrderExecutor:
         self,
         order_id: str,
         symbol: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Fetch order status."""
         if not self._connected:
             await self.connect()
@@ -604,7 +602,7 @@ class AsyncOrderExecutor:
         async with self._semaphore:
             return await self._execute_with_retry(self.exchange.fetch_order, order_id, symbol)
 
-    async def _execute_with_retry(self, func, *args, **kwargs) -> Dict[str, Any]:
+    async def _execute_with_retry(self, func, *args, **kwargs) -> dict[str, Any]:
         """Execute exchange function with retry logic."""
         last_error = None
 
@@ -634,8 +632,7 @@ class AsyncOrderExecutor:
                         self.config.retry_min_wait * (2**attempt), self.config.retry_max_wait
                     )
                     logger.warning(
-                        f"Order attempt {attempt + 1} failed: {e}. "
-                        f"Retrying in {wait_time:.1f}s..."
+                        f"Order attempt {attempt + 1} failed: {e}. Retrying in {wait_time:.1f}s..."
                     )
                     await asyncio.sleep(wait_time)
                 else:

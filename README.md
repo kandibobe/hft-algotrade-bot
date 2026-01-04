@@ -1,101 +1,63 @@
-# 🏛 Stoic Citadel: Hybrid MFT Trading System
+# MFT Algotrade Bot (Stoic Citadel)
 
-[![Build Status](https://github.com/kandibobe/mft-algotrade-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/kandibobe/mft-algotrade-bot/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-2.0.0-green)](CHANGELOG.md)
+A hybrid Mid-Frequency Trading (MFT) bot combining Freqtrade's robust strategy engine with custom high-performance execution logic.
 
-**Stoic Citadel** is a high-performance, hybrid Mid-Frequency Trading (MFT) system designed for cryptocurrency markets. It combines the strategic depth of [Freqtrade](https://www.freqtrade.io/) with a custom asynchronous execution layer for low-latency order management and advanced ML-driven decision making.
+## 🚀 Features
 
----
+*   **Hybrid Architecture**: Freqtrade for strategy signals + AsyncIO for execution.
+*   **Stoic Ensemble Strategy**: Multi-strategy ensemble with regime detection.
+*   **Smart Order Execution**: `ChaseLimit` logic for optimal entry/exit.
+*   **Risk Management**: Integrated risk manager with circuit breakers.
+*   **Telegram Companion Bot**: Full-featured interactive bot for alerts, portfolio tracking, and market news.
 
-## 🌟 Key Features
+## 🤖 Telegram Companion Bot
 
-*   **Hybrid Architecture**: Synchronous macro-strategy layer + Asynchronous micro-execution layer.
-*   **Smart Order Execution**: Custom `ChaseLimit` logic to minimize slippage and maximize fill rates.
-*   **ML-Powered Decision Gate**: Production-ready model registry and Feast feature store integration.
-*   **Institutional Risk Management**: Real-time correlation analysis, HRP position sizing, and multi-level circuit breakers.
-*   **Enterprise Monitoring**: Comprehensive ELK stack logging and Prometheus/Grafana dashboards.
+The project now includes an advanced interactive Telegram bot (ported from `bot-finance-tg`).
 
----
+### Features:
+- **Price Alerts**: Set alerts like "BTC > 100000" or "ETH +5%".
+- **Watchlist**: Track your favorite assets.
+- **Market News**: Get the latest crypto news (via CryptoPanic/NewsAPI).
+- **Volatility Scanner**: See top gainers and losers.
+- **Portfolio Tracking**: Manually track your crypto portfolio.
 
-## 🏗 Architecture Overview
+### Setup:
+1.  Ensure `TELEGRAM_BOT_TOKEN` is set in your `.env` file.
+2.  (Optional) Add API keys for full functionality:
+    *   `NEWS_API_ORG_KEY` (for general news)
+    *   `CRYPTO_PANIC_API_KEY` (for crypto news)
+    *   `ALPHA_VANTAGE_API_KEY` (for forex/stocks)
+    *   `FRED_API_KEY` (for economic data)
 
-The system is split into two primary boundaries to ensure both strategic flexibility and execution speed:
-
-1.  **Macro Layer (Strategy)**: Handles signal generation, pair selection, and high-level portfolio management.
-2.  **Micro Layer (Execution)**: Validates signals against real-time order books and manages the lifecycle of orders with sub-millisecond precision.
-
-For more details, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
----
-
-## 🚦 Quick Start
-
-### 1. Prerequisites
-*   Python 3.10+
-*   Docker & Docker Compose
-*   Redis (for feature caching)
-
-### 2. Installation
+### Running the Bot:
+You can run the Telegram bot as a standalone process:
 ```bash
-git clone https://github.com/kandibobe/mft-algotrade-bot.git
-cd mft-algotrade-bot
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
+python -m src.telegram_bot.runner
 ```
 
-### 3. Configuration
-Copy the template and fill in your API credentials:
+## 🛠 Installation
+
+1.  Clone the repository.
+2.  Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  Copy `.env.example` to `.env` and configure your keys.
+
+## 📈 Usage
+
+Run the main trading bot:
 ```bash
-cp config.json.example config.json
+freqtrade trade --config config.json --strategy StoicEnsembleStrategy
 ```
-*Note: `config.json` is automatically ignored by Git for your security.*
 
----
+Run the Telegram companion bot:
+```bash
+python -m src.telegram_bot.runner
+```
 
-## 📊 Performance & Monitoring
+## 📚 Documentation
 
-### Dashboard Showcase
-> **[TODO: Вставьте сюда скриншот вашего Grafana дашборда]**
-> *Пример: `![Grafana Dashboard](docs/img/grafana_sample.png)`*
-
-### Latest Backtest Results (v2.0.0)
-| Metric | Value |
-| :--- | :--- |
-| **ROI** | [TODO: %] |
-| **Max Drawdown** | [TODO: %] |
-| **Sharpe Ratio** | [TODO: x.xx] |
-| **Win Rate** | [TODO: %] |
-
----
-
-## 🔒 Security First
-
-*   **Zero Leakage Policy**: Proprietary strategies and production configs are strictly excluded via `.gitignore`.
-*   **Sanitized History**: This repository is maintained with a clean history suitable for public collaboration.
-*   **Local-Only Mode**: All sensitive data stays on your machine.
-
----
-
-## 📜 Documentation Index
-
-*   [Strategic Development Guide](docs/STRATEGY_DEVELOPMENT_GUIDE.md)
-*   [ML Pipeline & Training](docs/ML_TRAINING_PIPELINE.md)
-*   [Order Management Specification](docs/ORDER_MANAGEMENT.md)
-*   [Risk Management Specs](docs/RISK_MANAGEMENT_SPEC.md)
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) and our [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.
-
----
-
-## ⚖️ License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
-Developed with 🏛 **Stoic Citadel Team**.
+*   [Telegram Bot Guide](docs/TELEGRAM_BOT.md)
+*   [Architecture](docs/ARCHITECTURE.md)
+*   [Risk Management](docs/RISK_MANAGEMENT_SPEC.md)

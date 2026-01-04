@@ -10,14 +10,13 @@ Emergency stop mechanism for trading bot:
 - Manual override capability
 """
 
+import json
 import logging
 import threading
-import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from pathlib import Path
 from enum import Enum
-from typing import Dict, List, Optional
+from pathlib import Path
 
 # Try to import metrics exporter
 try:
@@ -78,9 +77,9 @@ class CircuitBreakerConfig:
 
     # Adaptive thresholds
     enable_adaptive_thresholds: bool = True
-    baseline_volatility: Optional[float] = None  # Will be learned from data
+    baseline_volatility: float | None = None  # Will be learned from data
     max_volatility_multiplier: float = 2.0  # Max adaptive increase
-    
+
     # Persistence
     state_file_path: Path = Path("user_data/circuit_breaker_state.json")
 
@@ -93,9 +92,9 @@ class TradingSession:
     initial_balance: float = 0.0
     current_balance: float = 0.0
     peak_balance: float = 0.0
-    trades: List[Dict] = field(default_factory=list)
+    trades: list[dict] = field(default_factory=list)
     consecutive_losses: int = 0
-    api_errors: List[datetime] = field(default_factory=list)
+    api_errors: list[datetime] = field(default_factory=list)
 
     @property
     def daily_pnl_pct(self) -> float:
@@ -118,16 +117,16 @@ class CircuitBreaker:
     with gradual recovery mechanism.
     """
 
-    def __init__(self, config: Optional[CircuitBreakerConfig] = None):
+    def __init__(self, config: CircuitBreakerConfig | None = None):
         self.config = config or CircuitBreakerConfig()
         self.state = CircuitState.CLOSED
-        self.trip_reason: Optional[TripReason] = None
-        self.trip_time: Optional[datetime] = None
+        self.trip_reason: TripReason | None = None
+        self.trip_time: datetime | None = None
         self.session = TradingSession()
         self.recovery_trades: int = 0
         self._lock = threading.RLock()
-        self._callbacks: List[callable] = []
-        
+        self._callbacks: list[callable] = []
+
         # Load state if exists
         self.load_state()
 
@@ -137,7 +136,10 @@ class CircuitBreaker:
             # If we loaded a session and it's from today (approx), keep the PnL tracking
             # Otherwise start fresh
             # Also reset if initial_balance is invalid (fresh instance)
-            if self.session.start_time.date() != datetime.utcnow().date() or self.session.initial_balance <= 0:
+            if (
+                self.session.start_time.date() != datetime.utcnow().date()
+                or self.session.initial_balance <= 0
+            ):
                 self.session = TradingSession(
                     start_time=datetime.utcnow(),
                     initial_balance=initial_balance,
@@ -147,7 +149,7 @@ class CircuitBreaker:
                 logger.info(f"New session initialized with balance: ${initial_balance:,.2f}")
             else:
                 logger.info(f"Resumed session with balance: ${self.session.current_balance:,.2f}")
-            
+
             self.save_state()
 
     def update_balance(self, new_balance: float) -> None:
@@ -158,7 +160,7 @@ class CircuitBreaker:
                 self.session.peak_balance = new_balance
             self.save_state()
 
-    def record_trade(self, trade: Dict, profit_pct: float) -> None:
+    def record_trade(self, trade: dict, profit_pct: float) -> None:
         """
         Record trade result and check for circuit breaker conditions.
 
@@ -206,8 +208,7 @@ class CircuitBreaker:
 
         if current_volatility > threshold:
             logger.warning(
-                f"High volatility detected: {current_volatility:.2%} "
-                f"(threshold: {threshold:.2%})"
+                f"High volatility detected: {current_volatility:.2%} (threshold: {threshold:.2%})"
             )
             self._trip(TripReason.HIGH_VOLATILITY)
 
@@ -253,7 +254,7 @@ class CircuitBreaker:
 
         return adjusted_threshold
 
-    def update_baseline_volatility(self, returns: List[float], window_size: int = 100) -> None:
+    def update_baseline_volatility(self, returns: list[float], window_size: int = 100) -> None:
         """
         Update baseline volatility from recent returns.
 
@@ -351,7 +352,7 @@ class CircuitBreaker:
         """Register callback for state changes."""
         self._callbacks.append(callback)
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         """Get current circuit breaker status."""
         return {
             "state": self.state.value,
@@ -392,7 +393,7 @@ class CircuitBreaker:
         self.trip_reason = reason
         self.trip_time = datetime.utcnow()
         self.recovery_trades = 0
-        
+
         self.save_state()
 
         msg = (
@@ -402,7 +403,7 @@ class CircuitBreaker:
             f"Consecutive Losses: {self.session.consecutive_losses}"
         )
         logger.error(f"🚨 {msg}")
-        
+
         # Send notification
         get_notifier().send_notification(msg, level="critical")
 
@@ -428,12 +429,12 @@ class CircuitBreaker:
         self.trip_time = None
         self.recovery_trades = 0
         self.session.consecutive_losses = 0
-        
+
         self.save_state()
 
         msg = "Circuit breaker reset to CLOSED state. Trading resumed."
         logger.info(f"✅ {msg}")
-        
+
         # Send notification
         get_notifier().send_notification(msg, level="info")
 
@@ -451,7 +452,7 @@ class CircuitBreaker:
                 callback(self.get_status())
             except Exception as e:
                 logger.error(f"Callback error: {e}")
-    
+
     def save_state(self) -> None:
         """Save circuit breaker state to disk."""
         try:
@@ -465,16 +466,16 @@ class CircuitBreaker:
                     "initial_balance": self.session.initial_balance,
                     "current_balance": self.session.current_balance,
                     "peak_balance": self.session.peak_balance,
-                    "consecutive_losses": self.session.consecutive_losses
-                }
+                    "consecutive_losses": self.session.consecutive_losses,
+                },
             }
-            
+
             # Ensure directory exists
             self.config.state_file_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(self.config.state_file_path, 'w') as f:
+
+            with open(self.config.state_file_path, "w") as f:
                 json.dump(state_data, f, indent=2)
-                
+
         except Exception as e:
             logger.error(f"Failed to save circuit breaker state: {e}")
 
@@ -482,18 +483,18 @@ class CircuitBreaker:
         """Load circuit breaker state from disk."""
         if not self.config.state_file_path.exists():
             return
-            
+
         try:
-            with open(self.config.state_file_path, 'r') as f:
+            with open(self.config.state_file_path) as f:
                 data = json.load(f)
-                
+
             self.state = CircuitState(data["state"])
             if data["trip_reason"]:
                 self.trip_reason = TripReason(data["trip_reason"])
             if data["trip_time"]:
                 self.trip_time = datetime.fromisoformat(data["trip_time"])
             self.recovery_trades = data.get("recovery_trades", 0)
-            
+
             session_data = data.get("session", {})
             if session_data:
                 self.session.start_time = datetime.fromisoformat(session_data["start_time"])
@@ -501,16 +502,16 @@ class CircuitBreaker:
                 self.session.current_balance = session_data["current_balance"]
                 self.session.peak_balance = session_data["peak_balance"]
                 self.session.consecutive_losses = session_data["consecutive_losses"]
-                
+
             logger.info("Circuit breaker state loaded from disk")
-            
+
         except Exception as e:
             logger.error(f"Failed to load circuit breaker state: {e}")
 
     def _should_auto_reset(self) -> bool:
         """
         Check if auto-reset conditions are met.
-        
+
         This is a pure check with no side effects. State transitions
         should be handled by the caller with proper locking.
         """
@@ -531,25 +532,25 @@ class CircuitBreaker:
     def _attempt_half_open_transition(self) -> bool:
         """
         Attempt to transition from OPEN to HALF_OPEN state.
-        
+
         Returns True if transition was performed, False otherwise.
         Must be called with lock held.
         """
         if self.state != CircuitState.OPEN:
             return False
-            
+
         if not self.trip_time:
             return False
-            
+
         # Check cooldown
         cooldown_elapsed = datetime.utcnow() - self.trip_time
         if cooldown_elapsed < timedelta(minutes=self.config.cooldown_minutes):
             return False
-            
+
         # Transition to half-open
         self.state = CircuitState.HALF_OPEN
         logger.info("Circuit breaker transitioning to HALF_OPEN")
-        
+
         # Update metrics for half-open state
         if METRICS_AVAILABLE:
             try:
@@ -557,5 +558,5 @@ class CircuitBreaker:
                 exporter.set_circuit_breaker_status(0)  # 0 for closed/half-open
             except Exception as e:
                 logger.warning(f"Failed to update circuit breaker metrics: {e}")
-                
+
         return True

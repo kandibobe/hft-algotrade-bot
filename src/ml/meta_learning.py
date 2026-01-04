@@ -17,9 +17,9 @@ License: MIT
 
 import logging
 import pickle
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -60,7 +60,7 @@ class MetaLearningEnsemble:
         predictions, confidence = ensemble.predict_with_confidence(X_new)
     """
 
-    def __init__(self, base_models: List[Any], config: Optional[MetaLearningConfig] = None):
+    def __init__(self, base_models: list[Any], config: MetaLearningConfig | None = None):
         """
         Initialize meta-learning ensemble.
 
@@ -74,7 +74,7 @@ class MetaLearningEnsemble:
             random_state=self.config.random_state, max_iter=1000, class_weight="balanced"
         )
         self.is_trained = False
-        self.training_history: List[Dict] = []
+        self.training_history: list[dict] = []
         self.prediction_count = 0
 
         # Validate base models
@@ -86,9 +86,9 @@ class MetaLearningEnsemble:
         self,
         X_train: np.ndarray,
         y_train: np.ndarray,
-        X_val: Optional[np.ndarray] = None,
-        y_val: Optional[np.ndarray] = None,
-    ) -> Dict[str, Any]:
+        X_val: np.ndarray | None = None,
+        y_val: np.ndarray | None = None,
+    ) -> dict[str, Any]:
         """
         Train meta-model on base model predictions.
 
@@ -147,8 +147,8 @@ class MetaLearningEnsemble:
         return metrics
 
     def train_with_validation_split(
-        self, X: np.ndarray, y: np.ndarray, test_size: Optional[float] = None
-    ) -> Dict[str, Any]:
+        self, X: np.ndarray, y: np.ndarray, test_size: float | None = None
+    ) -> dict[str, Any]:
         """
         Train meta-model with automatic train/val/test split.
 
@@ -196,7 +196,7 @@ class MetaLearningEnsemble:
 
         return metrics
 
-    def predict_with_confidence(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def predict_with_confidence(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Predict with confidence score.
 
@@ -268,7 +268,7 @@ class MetaLearningEnsemble:
 
         return weights
 
-    def save(self, path: Optional[str] = None) -> str:
+    def save(self, path: str | None = None) -> str:
         """
         Save meta-model to disk.
 
@@ -301,7 +301,7 @@ class MetaLearningEnsemble:
         logger.info(f"Meta-model saved to {path}")
         return path
 
-    def load(self, path: Optional[str] = None) -> bool:
+    def load(self, path: str | None = None) -> bool:
         """
         Load meta-model from disk.
 
@@ -398,7 +398,7 @@ class MetaLearningEnsemble:
 
         return np.clip(confidence, 0, 1)
 
-    def _predict_with_equal_weights(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _predict_with_equal_weights(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Predict using equal weights (fallback when meta-model not trained).
 
@@ -420,7 +420,7 @@ class MetaLearningEnsemble:
 
     def _evaluate_metrics(
         self, base_preds: np.ndarray, y_true: np.ndarray, prefix: str = ""
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Evaluate model performance metrics.
 
@@ -470,7 +470,7 @@ class MetaLearningEnsemble:
 
     def update_with_feedback(
         self, X: np.ndarray, y_true: np.ndarray, incremental: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Update meta-model with new feedback data.
 

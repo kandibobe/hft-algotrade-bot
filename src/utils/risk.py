@@ -8,7 +8,6 @@ Position sizing, risk calculations, and portfolio management.
 """
 
 import logging
-from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -22,7 +21,7 @@ def calculate_position_size_fixed_risk(
     entry_price: float,
     stop_loss_price: float,
     min_position: float = 0.0,
-    max_position: Optional[float] = None,
+    max_position: float | None = None,
 ) -> float:
     """
     Calculate position size using fixed risk method.
@@ -99,7 +98,7 @@ def calculate_position_size_kelly(
     return account_balance * position_fraction
 
 
-def calculate_max_drawdown(equity_curve: pd.Series) -> Tuple[float, int, int]:
+def calculate_max_drawdown(equity_curve: pd.Series) -> tuple[float, int, int]:
     """
     Calculate maximum drawdown from equity curve.
 
@@ -234,7 +233,7 @@ def calculate_calmar_ratio(equity_curve: pd.Series, periods_per_year: int = 252 
     return annualized_return / max_dd
 
 
-def calculate_risk_metrics(equity_curve: pd.Series) -> Dict[str, float]:
+def calculate_risk_metrics(equity_curve: pd.Series) -> dict[str, float]:
     """
     Calculate comprehensive risk metrics.
 

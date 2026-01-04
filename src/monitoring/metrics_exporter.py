@@ -19,8 +19,6 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime
-from typing import Optional
 
 # Try to import prometheus_client
 try:
@@ -118,84 +116,81 @@ class TradingMetricsExporter:
         self.market_spread_pct = Gauge(
             f"{self.namespace}_market_spread_pct", "Current bid-ask spread percentage", ["symbol"]
         )
-        
+
         self.orderbook_imbalance = Gauge(
-            f"{self.namespace}_orderbook_imbalance", "Current orderbook imbalance (-1 to 1)", ["symbol"]
+            f"{self.namespace}_orderbook_imbalance",
+            "Current orderbook imbalance (-1 to 1)",
+            ["symbol"],
         )
 
         self.ws_message_latency = Histogram(
             f"{self.namespace}_ws_message_latency_ms",
             "WebSocket message processing latency in milliseconds",
-            buckets=[0.1, 0.5, 1, 5, 10, 50, 100]
+            buckets=[0.1, 0.5, 1, 5, 10, 50, 100],
         )
 
         # Smart limit order metrics
         self.fee_savings_total = Gauge(
-            f"{self.namespace}_fee_savings_total_usd", 
-            "Total fee savings from smart limit orders in USD"
+            f"{self.namespace}_fee_savings_total_usd",
+            "Total fee savings from smart limit orders in USD",
         )
-        
+
         self.fee_savings_per_trade = Histogram(
             f"{self.namespace}_fee_savings_per_trade_usd",
             "Fee savings per trade from smart limit orders in USD",
-            buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0]
+            buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0],
         )
-        
+
         self.smart_limit_maker_fills = Counter(
             f"{self.namespace}_smart_limit_maker_fills_total",
-            "Total maker fills from smart limit orders"
+            "Total maker fills from smart limit orders",
         )
-        
+
         self.smart_limit_taker_fills = Counter(
             f"{self.namespace}_smart_limit_taker_fills_total",
-            "Total taker fills from smart limit orders"
+            "Total taker fills from smart limit orders",
         )
 
         # ML metrics
         self.ml_prediction_confidence = Gauge(
             f"{self.namespace}_ml_prediction_confidence",
-            "ML model prediction confidence (0.0 to 1.0)"
+            "ML model prediction confidence (0.0 to 1.0)",
         )
-        
+
         self.ml_prediction_confidence_histogram = Histogram(
             f"{self.namespace}_ml_prediction_confidence_distribution",
             "Distribution of ML prediction confidence values",
-            buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+            buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         )
-        
+
         self.ml_predictions_total = Counter(
             f"{self.namespace}_ml_predictions_total",
             "Total ML predictions made",
-            ["model", "prediction_type"]
+            ["model", "prediction_type"],
         )
 
         # HRP Metrics
         self.hrp_weights = Gauge(
-            f"{self.namespace}_hrp_asset_weight",
-            "Calculated HRP weight for an asset",
-            ["asset"]
+            f"{self.namespace}_hrp_asset_weight", "Calculated HRP weight for an asset", ["asset"]
         )
 
         # TWAP/VWAP Metrics
         self.twap_vwap_orders_total = Counter(
-            f"{self.namespace}_twap_vwap_orders_total",
-            "Total TWAP/VWAP orders",
-            ["order_type"]
+            f"{self.namespace}_twap_vwap_orders_total", "Total TWAP/VWAP orders", ["order_type"]
         )
         self.twap_vwap_slippage = Histogram(
             f"{self.namespace}_twap_vwap_slippage_pct",
             "Slippage of TWAP/VWAP orders in percent",
-            ["order_type"]
+            ["order_type"],
         )
 
         # Rebalancer Metrics
         self.rebalancer_runs_total = Counter(
-            f"{self.namespace}_rebalancer_runs_total",
-            "Total rebalancer runs"
+            f"{self.namespace}_rebalancer_runs_total", "Total rebalancer runs"
         )
         self.portfolio_deviation = Gauge(
             f"{self.namespace}_portfolio_deviation_pct",
-            "Portfolio deviation from target in percent"
+            "Portfolio deviation from target in percent",
         )
 
         # System metrics
@@ -280,17 +275,17 @@ class TradingMetricsExporter:
     def record_fee_savings(self, savings_usd: float, trade_type: str = "smart_limit") -> None:
         """
         Record fee savings from smart limit orders.
-        
+
         Args:
             savings_usd: Fee savings in USD
             trade_type: Type of trade (smart_limit, regular, etc.)
         """
         if not self._enabled:
             return
-            
+
         self.fee_savings_total.inc(savings_usd)
         self.fee_savings_per_trade.observe(savings_usd)
-        
+
         if self.trading_metrics:
             # Update existing metrics if available
             pass
@@ -298,22 +293,24 @@ class TradingMetricsExporter:
     def record_smart_limit_fill(self, fill_type: str) -> None:
         """
         Record smart limit order fill type.
-        
+
         Args:
             fill_type: 'maker' or 'taker'
         """
         if not self._enabled:
             return
-            
+
         if fill_type == "maker":
             self.smart_limit_maker_fills.inc()
         elif fill_type == "taker":
             self.smart_limit_taker_fills.inc()
 
-    def record_ml_prediction(self, confidence: float, model: str = "ensemble", prediction_type: str = "binary") -> None:
+    def record_ml_prediction(
+        self, confidence: float, model: str = "ensemble", prediction_type: str = "binary"
+    ) -> None:
         """
         Record ML prediction with confidence.
-        
+
         Args:
             confidence: Prediction confidence (0.0 to 1.0)
             model: Model name (ensemble, xgboost, etc.)
@@ -321,11 +318,11 @@ class TradingMetricsExporter:
         """
         if not self._enabled:
             return
-            
+
         self.ml_prediction_confidence.set(confidence)
         self.ml_prediction_confidence_histogram.observe(confidence)
         self.ml_predictions_total.labels(model=model, prediction_type=prediction_type).inc()
-        
+
         if self.trading_metrics:
             self.trading_metrics.record_prediction(confidence)
 
@@ -380,8 +377,8 @@ class TradingMetricsExporter:
 
 
 # Global exporter instance
-_exporter: Optional[TradingMetricsExporter] = None
-_server_thread: Optional[threading.Thread] = None
+_exporter: TradingMetricsExporter | None = None
+_server_thread: threading.Thread | None = None
 
 
 def get_exporter() -> TradingMetricsExporter:
@@ -399,7 +396,7 @@ def get_exporter() -> TradingMetricsExporter:
 
 def start_metrics_server(
     host: str = "0.0.0.0", port: int = 8000, daemon: bool = True
-) -> Optional[threading.Thread]:
+) -> threading.Thread | None:
     """
     Start Prometheus metrics HTTP server in a background thread.
 

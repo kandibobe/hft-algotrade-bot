@@ -24,7 +24,7 @@ Usage:
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -89,14 +89,14 @@ class MarketRegimeFilter:
             return True
     """
 
-    def __init__(self, config: Optional[RegimeFilterConfig] = None):
+    def __init__(self, config: RegimeFilterConfig | None = None):
         """Initialize regime filter."""
         self.config = config or RegimeFilterConfig()
         self.regime_history: list = []
         self.blocked_trades: int = 0
         self.allowed_trades: int = 0
 
-    def detect_regime(self, dataframe: pd.DataFrame) -> Tuple[MarketRegime, Dict[str, Any]]:
+    def detect_regime(self, dataframe: pd.DataFrame) -> tuple[MarketRegime, dict[str, Any]]:
         """
         Detect current market regime.
 
@@ -155,8 +155,8 @@ class MarketRegimeFilter:
         return regime, details
 
     def should_trade(
-        self, dataframe: pd.DataFrame, side: str, entry_tag: Optional[str] = None
-    ) -> Tuple[bool, str]:
+        self, dataframe: pd.DataFrame, side: str, entry_tag: str | None = None
+    ) -> tuple[bool, str]:
         """
         Check if trade should be allowed based on regime.
 
@@ -263,7 +263,7 @@ class MarketRegimeFilter:
 
         return adx.iloc[-1] if not pd.isna(adx.iloc[-1]) else 0.0
 
-    def _calculate_volatility(self, dataframe: pd.DataFrame) -> Tuple[float, float]:
+    def _calculate_volatility(self, dataframe: pd.DataFrame) -> tuple[float, float]:
         """Calculate current and average volatility."""
         returns = dataframe["close"].pct_change().dropna()
 
@@ -278,7 +278,7 @@ class MarketRegimeFilter:
 
         return current_vol, avg_vol
 
-    def _check_volume(self, dataframe: pd.DataFrame) -> Tuple[bool, str]:
+    def _check_volume(self, dataframe: pd.DataFrame) -> tuple[bool, str]:
         """Check if volume confirms the move."""
         if "volume" not in dataframe.columns:
             return True, "No volume data"
@@ -296,7 +296,7 @@ class MarketRegimeFilter:
 
         return True, f"Volume OK: {volume_ratio:.1%} of average"
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get filter statistics."""
         total = self.allowed_trades + self.blocked_trades
 
@@ -326,19 +326,19 @@ class MarketRegimeFilter:
 ╠══════════════════════════════════════════════════════════╣
 ║ Regime: {regime.value.upper():^48} ║
 ╠══════════════════════════════════════════════════════════╣
-║ Close:     {details.get('close', 0):>15.2f}                             ║
-║ EMA-200:   {details.get('ema_200', 0):>15.2f}                             ║
-║ Price/EMA: {details.get('price_vs_ema', 0)*100:>14.2f}%                             ║
-║ ADX:       {details.get('adx', 0):>15.1f}                             ║
-║ Vol Ratio: {details.get('volatility_ratio', 0):>15.2f}x                            ║
+║ Close:     {details.get("close", 0):>15.2f}                             ║
+║ EMA-200:   {details.get("ema_200", 0):>15.2f}                             ║
+║ Price/EMA: {details.get("price_vs_ema", 0) * 100:>14.2f}%                             ║
+║ ADX:       {details.get("adx", 0):>15.1f}                             ║
+║ Vol Ratio: {details.get("volatility_ratio", 0):>15.2f}x                            ║
 ╠══════════════════════════════════════════════════════════╣
-║ Reason: {details.get('reason', 'N/A'):<48} ║
+║ Reason: {details.get("reason", "N/A"):<48} ║
 ╚══════════════════════════════════════════════════════════╝
 """
         return summary
 
 
-def create_freqtrade_confirm_entry(config: Optional[RegimeFilterConfig] = None):
+def create_freqtrade_confirm_entry(config: RegimeFilterConfig | None = None):
     """
     Create a confirm_trade_entry function for Freqtrade.
 
@@ -358,7 +358,7 @@ def create_freqtrade_confirm_entry(config: Optional[RegimeFilterConfig] = None):
         rate: float,
         time_in_force: str,
         current_time,
-        entry_tag: Optional[str],
+        entry_tag: str | None,
         side: str,
         **kwargs,
     ) -> bool:

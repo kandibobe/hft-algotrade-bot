@@ -13,7 +13,6 @@ License: MIT
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -51,7 +50,7 @@ class CorrelationManager:
         self.max_portfolio_heat = max_portfolio_heat
 
         # Cache for price data
-        self.price_cache: Dict[str, pd.DataFrame] = {}
+        self.price_cache: dict[str, pd.DataFrame] = {}
 
     def calculate_correlation(
         self, pair1_data: pd.DataFrame, pair2_data: pd.DataFrame, method: str = "pearson"
@@ -89,8 +88,8 @@ class CorrelationManager:
         self,
         new_pair: str,
         new_pair_data: pd.DataFrame,
-        open_positions: List[Dict],
-        all_pairs_data: Dict[str, pd.DataFrame],
+        open_positions: list[dict],
+        all_pairs_data: dict[str, pd.DataFrame],
     ) -> bool:
         """
         Check if new entry would create excessive correlation.
@@ -134,7 +133,7 @@ class CorrelationManager:
         return True
 
     def calculate_portfolio_heat(
-        self, open_positions: List[Dict], current_prices: Dict[str, float]
+        self, open_positions: list[dict], current_prices: dict[str, float]
     ) -> float:
         """
         Calculate current portfolio exposure (heat).
@@ -178,7 +177,7 @@ class CorrelationManager:
         return portfolio_heat
 
     def check_portfolio_heat(
-        self, open_positions: List[Dict], current_prices: Dict[str, float]
+        self, open_positions: list[dict], current_prices: dict[str, float]
     ) -> bool:
         """
         Check if portfolio heat is within limits.
@@ -196,7 +195,7 @@ class CorrelationManager:
 
         if heat > self.max_portfolio_heat:
             logger.error(
-                f"❌ Portfolio heat {heat:.2%} exceeds " f"maximum {self.max_portfolio_heat:.2%}"
+                f"❌ Portfolio heat {heat:.2%} exceeds maximum {self.max_portfolio_heat:.2%}"
             )
             return False
 
@@ -211,7 +210,9 @@ class DrawdownMonitor:
     """
 
     def __init__(
-        self, max_drawdown: float = 0.15, stop_duration_minutes: int = 240  # 15%  # 4 hours
+        self,
+        max_drawdown: float = 0.15,
+        stop_duration_minutes: int = 240,  # 15%  # 4 hours
     ):
         """
         Initialize drawdown monitor.
@@ -222,7 +223,7 @@ class DrawdownMonitor:
         """
         self.max_drawdown = max_drawdown
         self.stop_duration_minutes = stop_duration_minutes
-        self.circuit_breaker_until: Optional[datetime] = None
+        self.circuit_breaker_until: datetime | None = None
 
     def check_drawdown(self, current_balance: float, peak_balance: float) -> bool:
         """
@@ -251,8 +252,7 @@ class DrawdownMonitor:
         drawdown = (peak_balance - current_balance) / peak_balance
 
         logger.info(
-            f"Drawdown: {drawdown:.2%} "
-            f"(current: ${current_balance:.2f}, peak: ${peak_balance:.2f})"
+            f"Drawdown: {drawdown:.2%} (current: ${current_balance:.2f}, peak: ${peak_balance:.2f})"
         )
 
         # Trigger circuit breaker if exceeded
@@ -326,10 +326,10 @@ class CorrelationAnalyzer:
 
     def check_concentration_risk(
         self,
-        positions: List["Position"],
+        positions: list["Position"],
         correlation_threshold: float = 0.7,
         max_cluster_exposure: float = 0.5,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """
         Detect if portfolio is too concentrated in correlated assets.
 
@@ -428,7 +428,7 @@ class CorrelationAnalyzer:
 
         return False, "OK - No concentration risk detected"
 
-    def _get_latest_correlation_matrix(self, symbols: List[str]) -> pd.DataFrame:
+    def _get_latest_correlation_matrix(self, symbols: list[str]) -> pd.DataFrame:
         """
         Extract the latest correlation matrix from stored correlation data.
 
@@ -467,7 +467,7 @@ class CorrelationAnalyzer:
             # Simple correlation matrix
             return self.correlation_matrix
 
-    def get_correlation_summary(self) -> Dict:
+    def get_correlation_summary(self) -> dict:
         """
         Get summary of correlation matrix.
 
@@ -519,4 +519,4 @@ class CorrelationAnalyzer:
             }
         except Exception as e:
             logger.error(f"Error getting correlation summary: {e}")
-            return {"status": f"Error: {str(e)}"}
+            return {"status": f"Error: {e!s}"}

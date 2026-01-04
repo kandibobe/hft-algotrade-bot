@@ -18,13 +18,15 @@ Author: Stoic Citadel Team
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple, Any, Callable
+from typing import Any
 
 import numpy as np
 import pandas as pd
-from src.utils.logger import log
+
 from src.risk.hrp import get_hrp_weights
+from src.utils.logger import log
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,7 @@ class PositionSizer:
     Advanced position sizing with multiple methods.
     """
 
-    def __init__(self, config: Optional[PositionSizingConfig] = None) -> None:
+    def __init__(self, config: PositionSizingConfig | None = None) -> None:
         """
         Initialize PositionSizer.
 
@@ -67,8 +69,8 @@ class PositionSizer:
             config: Configuration object.
         """
         self.config = config or PositionSizingConfig()
-        self._correlation_matrix: Optional[pd.DataFrame] = None
-        self._current_positions: Dict[str, float] = {}
+        self._correlation_matrix: pd.DataFrame | None = None
+        self._current_positions: dict[str, float] = {}
 
     def calculate_position_size(
         self,
@@ -77,7 +79,7 @@ class PositionSizer:
         stop_loss_price: float,
         method: str = "fixed_risk",
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Calculate position size using specified method.
 
@@ -91,7 +93,7 @@ class PositionSizer:
         Returns:
             Dictionary with position details.
         """
-        methods: Dict[str, Callable] = {
+        methods: dict[str, Callable] = {
             "fixed_risk": self._fixed_risk_size,
             "volatility": self._volatility_adjusted_size,
             "var": self._var_based_size,
@@ -126,9 +128,9 @@ class PositionSizer:
         account_balance: float,
         entry_price: float,
         stop_loss_price: float,
-        risk_pct: Optional[float] = None,
+        risk_pct: float | None = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Fixed risk position sizing.
 
@@ -160,10 +162,10 @@ class PositionSizer:
         account_balance: float,
         entry_price: float,
         stop_loss_price: float,
-        current_volatility: Optional[float] = None,
-        returns: Optional[pd.Series] = None,
+        current_volatility: float | None = None,
+        returns: pd.Series | None = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Volatility-adjusted position sizing.
 
@@ -179,7 +181,9 @@ class PositionSizer:
             current_volatility = self.config.target_volatility
 
         vol_scalar = self.config.target_volatility / max(current_volatility, 0.001)
-        vol_scalar = float(np.clip(vol_scalar, self.config.min_vol_scalar, self.config.max_vol_scalar))
+        vol_scalar = float(
+            np.clip(vol_scalar, self.config.min_vol_scalar, self.config.max_vol_scalar)
+        )
 
         adjusted_size = base_result["position_size"] * vol_scalar
         adjusted_value = adjusted_size * entry_price
@@ -201,9 +205,9 @@ class PositionSizer:
         account_balance: float,
         entry_price: float,
         stop_loss_price: float,
-        returns: Optional[pd.Series] = None,
+        returns: pd.Series | None = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         VaR-based position sizing.
 
@@ -252,7 +256,7 @@ class PositionSizer:
         avg_win: float = 0.03,
         avg_loss: float = 0.02,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Kelly Criterion position sizing.
 
@@ -297,7 +301,7 @@ class PositionSizer:
         prices: pd.DataFrame,
         symbol: str,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Hierarchical Risk Parity (HRP) position sizing.
         """
@@ -321,7 +325,7 @@ class PositionSizer:
 
     def _optimal_size(
         self, account_balance: float, entry_price: float, stop_loss_price: float, **kwargs: Any
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Optimal position sizing combining all methods.
 
@@ -350,9 +354,7 @@ class PositionSizer:
             )
 
         if "prices" in kwargs and "symbol" in kwargs:
-            results["hrp"] = self._hrp_size(
-                account_balance, entry_price, stop_loss_price, **kwargs
-            )
+            results["hrp"] = self._hrp_size(account_balance, entry_price, stop_loss_price, **kwargs)
 
         # Find minimum
         min_size = float("inf")
@@ -369,14 +371,14 @@ class PositionSizer:
 
         return final_result
 
-    def _calculate_var(self, returns: pd.Series, confidence: Optional[float] = None) -> float:
+    def _calculate_var(self, returns: pd.Series, confidence: float | None = None) -> float:
         """Calculate VaR from returns."""
         confidence = confidence or self.config.var_confidence
         return float(abs(np.percentile(returns, (1 - confidence) * 100)))
 
     def check_portfolio_risk(
-        self, new_position: Dict[str, Any], symbol: str, account_balance: float
-    ) -> Tuple[bool, str]:
+        self, new_position: dict[str, Any], symbol: str, account_balance: float
+    ) -> tuple[bool, str]:
         """
         Check if new position fits within portfolio risk limits.
 
@@ -389,8 +391,10 @@ class PositionSizer:
         max_exposure = account_balance * self.config.max_portfolio_risk_pct
 
         if new_exposure > max_exposure:
-            msg = f"Portfolio exposure {new_exposure/account_balance:.1%} exceeds limit {self.config.max_portfolio_risk_pct:.1%}"
-            log.info("risk_rejection", symbol=symbol, reason=msg, rejection_type="portfolio_exposure")
+            msg = f"Portfolio exposure {new_exposure / account_balance:.1%} exceeds limit {self.config.max_portfolio_risk_pct:.1%}"
+            log.info(
+                "risk_rejection", symbol=symbol, reason=msg, rejection_type="portfolio_exposure"
+            )
             return (False, msg)
 
         # Check correlation exposure if matrix available
@@ -401,13 +405,20 @@ class PositionSizer:
             max_correlated = account_balance * self.config.max_correlation_exposure
 
             if correlated_exposure > max_correlated:
-                msg = f"Correlated exposure {correlated_exposure/account_balance:.1%} exceeds limit"
-                log.info("risk_rejection", symbol=symbol, reason=msg, rejection_type="correlation_exposure")
+                msg = (
+                    f"Correlated exposure {correlated_exposure / account_balance:.1%} exceeds limit"
+                )
+                log.info(
+                    "risk_rejection",
+                    symbol=symbol,
+                    reason=msg,
+                    rejection_type="correlation_exposure",
+                )
                 return (False, msg)
 
         return True, "OK"
 
-    def update_positions(self, positions: Dict[str, float]) -> None:
+    def update_positions(self, positions: dict[str, float]) -> None:
         """Update current positions for portfolio risk checks."""
         self._current_positions = positions.copy()
 
@@ -438,7 +449,7 @@ class PositionSizer:
         atr_period: int = 14,
         atr_multiplier: float = 2.0,
         risk_per_trade: float = 0.01,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Calculate position size based on ATR for stop-loss sizing.
 
@@ -509,10 +520,10 @@ class PositionSizer:
         entry_price: float,
         dataframe: pd.DataFrame,
         current_drawdown: float = 0.0,
-        win_rate: Optional[float] = None,
-        avg_win: Optional[float] = None,
-        avg_loss: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        win_rate: float | None = None,
+        avg_win: float | None = None,
+        avg_loss: float | None = None,
+    ) -> dict[str, Any]:
         """
         Calculate dynamic stake using best available method.
 
@@ -574,7 +585,7 @@ class PositionSizer:
             reduction_factor = max(0.5, 1.0 - current_drawdown)
             optimal_value *= reduction_factor
             logger.info(
-                f"Drawdown {current_drawdown:.1%} - reducing stake by {1-reduction_factor:.0%}"
+                f"Drawdown {current_drawdown:.1%} - reducing stake by {1 - reduction_factor:.0%}"
             )
 
         return {
@@ -588,7 +599,7 @@ class PositionSizer:
         }
 
 
-def create_freqtrade_stake_function(config: Optional[PositionSizingConfig] = None) -> Callable:
+def create_freqtrade_stake_function(config: PositionSizingConfig | None = None) -> Callable:
     """
     Create a custom_stake_amount function for Freqtrade strategies.
 
@@ -606,10 +617,10 @@ def create_freqtrade_stake_function(config: Optional[PositionSizingConfig] = Non
         current_time: Any,
         current_rate: float,
         proposed_stake: float,
-        min_stake: Optional[float],
+        min_stake: float | None,
         max_stake: float,
         leverage: float,
-        entry_tag: Optional[str],
+        entry_tag: str | None,
         side: str,
         **kwargs: Any,
     ) -> float:

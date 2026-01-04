@@ -23,21 +23,25 @@ Usage:
 """
 
 import logging
-from typing import Optional
 
 import yaml
+
 try:
-    from pydantic_settings import BaseSettings, SettingsConfigDict
     from pydantic import ConfigDict, Field, field_validator
+    from pydantic_settings import BaseSettings, SettingsConfigDict
 except ImportError:
     try:
         # Fallback for Pydantic v2 without pydantic-settings installed (using v1 compat layer)
-        from pydantic.v1 import BaseSettings, Field, validator as field_validator
+        from pydantic.v1 import BaseSettings, Field
+        from pydantic.v1 import validator as field_validator
+
         SettingsConfigDict = None
         ConfigDict = None
     except ImportError:
         # Fallback for Pydantic v1
-        from pydantic import BaseSettings, Field, validator as field_validator
+        from pydantic import BaseSettings, Field
+        from pydantic import validator as field_validator
+
         SettingsConfigDict = None
         ConfigDict = None
 
@@ -49,8 +53,8 @@ class TradingConfig(BaseSettings):
 
     # Exchange
     exchange_name: str = "binance"
-    api_key: Optional[str] = Field(None, validation_alias="BINANCE_API_KEY")
-    api_secret: Optional[str] = Field(None, validation_alias="BINANCE_API_SECRET")
+    api_key: str | None = Field(None, validation_alias="BINANCE_API_KEY")
+    api_secret: str | None = Field(None, validation_alias="BINANCE_API_SECRET")
 
     # Risk Management
     max_position_pct: float = Field(0.10, ge=0.01, le=0.50)  # 1-50%
@@ -80,6 +84,7 @@ class TradingConfig(BaseSettings):
             case_sensitive=True,
         )
     else:
+
         class Config:
             env_file = ".env"
             env_file_encoding = "utf-8"
@@ -113,7 +118,7 @@ def load_config_from_yaml(path: str) -> TradingConfig:
     Returns:
         TradingConfig instance populated from YAML.
     """
-    with open(path, "r") as f:
+    with open(path) as f:
         data = yaml.safe_load(f)
 
     # Convert YAML data to TradingConfig

@@ -11,17 +11,17 @@ Performance Optimizations:
 3. Parquet format for 10x faster I/O with compression
 """
 
+import asyncio
 import hashlib
 import json
 import logging
 import pickle
-import warnings
+from collections.abc import Iterator
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterator, Literal, Optional, Tuple, Union, Any, Dict, List
+from typing import Any
 
-import asyncio
 import numpy as np
 import pandas as pd
 
@@ -48,10 +48,10 @@ MEMORY_CACHE_SIZE = 100  # LRU cache size for frequently accessed data
 def get_ohlcv(
     symbol: str,
     timeframe: str,
-    start: Optional[Union[str, datetime]] = None,
-    end: Optional[Union[str, datetime]] = None,
+    start: str | datetime | None = None,
+    end: str | datetime | None = None,
     exchange: str = "binance",
-    data_dir: Optional[Path] = None,
+    data_dir: Path | None = None,
     use_cache: bool = True,
 ) -> pd.DataFrame:
     """
@@ -89,7 +89,7 @@ def get_ohlcv(
     # Try different file formats (prioritize Parquet for performance)
     df = pd.DataFrame()
     found = False
-    
+
     # Priority: Parquet > Feather > CSV > JSON
     for fmt, loader in [
         ("parquet", load_parquet),
@@ -107,7 +107,7 @@ def get_ohlcv(
             except Exception as e:
                 logger.warning(f"Failed to load {file_path}: {e}")
                 continue
-    
+
     if not found:
         raise FileNotFoundError(
             f"No data found for {symbol} {timeframe} in {data_path}/{exchange}/"
@@ -129,7 +129,7 @@ def get_ohlcv(
         elif df.index.tz is None and start_dt.tz is not None:
             start_dt = start_dt.tz_convert(None)
         df = df[df.index >= start_dt]
-        
+
     if end:
         end_dt = pd.to_datetime(end)
         # Ensure timezone consistency
@@ -138,7 +138,7 @@ def get_ohlcv(
         elif df.index.tz is None and end_dt.tz is not None:
             end_dt = end_dt.tz_convert(None)
         df = df[df.index < end_dt]
-        
+
     # Validate required columns
     required_cols = {"open", "high", "low", "close", "volume"}
     df_cols = set(df.columns.str.lower())
@@ -160,10 +160,10 @@ def get_ohlcv(
 async def get_ohlcv_async(
     symbol: str,
     timeframe: str,
-    start: Optional[Union[str, datetime]] = None,
-    end: Optional[Union[str, datetime]] = None,
+    start: str | datetime | None = None,
+    end: str | datetime | None = None,
     exchange: str = "binance",
-    data_dir: Optional[Path] = None,
+    data_dir: Path | None = None,
     use_cache: bool = True,
 ) -> pd.DataFrame:
     """
@@ -178,17 +178,17 @@ async def get_ohlcv_async(
         end=end,
         exchange=exchange,
         data_dir=data_dir,
-        use_cache=use_cache
+        use_cache=use_cache,
     )
 
 
 def load_ohlcv_chunked(
     symbol: str,
     timeframe: str,
-    start: Optional[Union[str, datetime]] = None,
-    end: Optional[Union[str, datetime]] = None,
+    start: str | datetime | None = None,
+    end: str | datetime | None = None,
     exchange: str = "binance",
-    data_dir: Optional[Path] = None,
+    data_dir: Path | None = None,
     chunk_size: str = "1ME",  # Monthly chunks by default (ME = month end)
 ) -> Iterator[pd.DataFrame]:
     """
@@ -242,9 +242,9 @@ def load_ohlcv_chunked(
             if end is None:
                 end = df_sample.index.max()
         except Exception:
-             # Fallback
-             start = datetime.now()
-             end = datetime.now()
+            # Fallback
+            start = datetime.now()
+            end = datetime.now()
 
     start_dt = pd.to_datetime(start)
     end_dt = pd.to_datetime(end)
@@ -280,7 +280,7 @@ def load_ohlcv_chunked(
 
 
 @lru_cache(maxsize=MEMORY_CACHE_SIZE)
-def get_cached_indicators(symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
+def get_cached_indicators(symbol: str, timeframe: str) -> pd.DataFrame | None:
     """
     Cache calculated indicators using LRU cache.
 
@@ -299,10 +299,10 @@ def get_cached_indicators(symbol: str, timeframe: str) -> Optional[pd.DataFrame]
 def _get_cached_data(
     symbol: str,
     timeframe: str,
-    start: Optional[Union[str, datetime]],
-    end: Optional[Union[str, datetime]],
+    start: str | datetime | None,
+    end: str | datetime | None,
     exchange: str,
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame | None:
     """
     Get data from cache (Redis or memory).
 
@@ -329,8 +329,8 @@ def _get_cached_data(
 def _set_cached_data(
     symbol: str,
     timeframe: str,
-    start: Optional[Union[str, datetime]],
-    end: Optional[Union[str, datetime]],
+    start: str | datetime | None,
+    end: str | datetime | None,
     exchange: str,
     df: pd.DataFrame,
 ) -> None:
@@ -353,8 +353,8 @@ def _set_cached_data(
 def _generate_cache_key(
     symbol: str,
     timeframe: str,
-    start: Optional[Union[str, datetime]],
-    end: Optional[Union[str, datetime]],
+    start: str | datetime | None,
+    end: str | datetime | None,
     exchange: str,
 ) -> str:
     """
@@ -368,7 +368,7 @@ def _generate_cache_key(
     return ":".join(key_parts)
 
 
-def load_csv(file_path: Union[str, Path]) -> pd.DataFrame:
+def load_csv(file_path: str | Path) -> pd.DataFrame:
     """
     Load OHLCV data from CSV file.
 
@@ -394,14 +394,14 @@ def load_csv(file_path: Union[str, Path]) -> pd.DataFrame:
     return df
 
 
-def load_feather(file_path: Union[str, Path]) -> pd.DataFrame:
+def load_feather(file_path: str | Path) -> pd.DataFrame:
     """
     Load OHLCV data from Feather file (Freqtrade default format).
     """
     return pd.read_feather(file_path)
 
 
-def load_parquet(file_path: Union[str, Path]) -> pd.DataFrame:
+def load_parquet(file_path: str | Path) -> pd.DataFrame:
     """
     Load OHLCV data from Parquet file.
 
@@ -411,7 +411,7 @@ def load_parquet(file_path: Union[str, Path]) -> pd.DataFrame:
     return pd.read_parquet(file_path)
 
 
-def save_to_parquet(df: pd.DataFrame, path: Union[str, Path]) -> None:
+def save_to_parquet(df: pd.DataFrame, path: str | Path) -> None:
     """
     Save DataFrame to Parquet format.
 
@@ -434,7 +434,7 @@ def save_to_parquet(df: pd.DataFrame, path: Union[str, Path]) -> None:
     logger.info(f"Saved data to Parquet: {path} (size: {path.stat().st_size / 1024 / 1024:.2f} MB)")
 
 
-def load_json(file_path: Union[str, Path]) -> pd.DataFrame:
+def load_json(file_path: str | Path) -> pd.DataFrame:
     """
     Load OHLCV data from JSON file.
 
@@ -443,7 +443,7 @@ def load_json(file_path: Union[str, Path]) -> pd.DataFrame:
     """
     file_path = Path(file_path)
 
-    with open(file_path, "r") as f:
+    with open(file_path) as f:
         data = json.load(f)
 
     # Handle Freqtrade format (list of lists)
@@ -481,7 +481,7 @@ def get_data_hash(df: pd.DataFrame) -> str:
     return hashlib.md5(hash_content.encode()).hexdigest()[:12]
 
 
-def get_data_metadata(df: pd.DataFrame, symbol: str, timeframe: str) -> Dict[str, Any]:
+def get_data_metadata(df: pd.DataFrame, symbol: str, timeframe: str) -> dict[str, Any]:
     """
     Generate metadata for a dataset.
     """
@@ -497,8 +497,8 @@ def get_data_metadata(df: pd.DataFrame, symbol: str, timeframe: str) -> Dict[str
 
 
 def convert_csv_to_parquet(
-    csv_path: Union[str, Path],
-    parquet_path: Optional[Union[str, Path]] = None,
+    csv_path: str | Path,
+    parquet_path: str | Path | None = None,
     delete_original: bool = False,
 ) -> Path:
     """

@@ -12,9 +12,7 @@ Author: Stoic Citadel Team
 License: MIT
 """
 
-from typing import Tuple
 
-import numpy as np
 import pandas as pd
 import talib.abstract as ta
 
@@ -33,7 +31,7 @@ class IndicatorLibrary:
     @staticmethod
     def calculate_ema_trio(
         close: pd.Series, fast: int = 50, medium: int = 100, slow: int = 200
-    ) -> Tuple[pd.Series, pd.Series, pd.Series]:
+    ) -> tuple[pd.Series, pd.Series, pd.Series]:
         """
         Calculate EMA trio for trend detection.
 
@@ -71,7 +69,7 @@ class IndicatorLibrary:
         fastk_period: int = 14,
         slowk_period: int = 3,
         slowd_period: int = 3,
-    ) -> Tuple[pd.Series, pd.Series]:
+    ) -> tuple[pd.Series, pd.Series]:
         """
         Calculate Stochastic Oscillator.
 
@@ -91,7 +89,7 @@ class IndicatorLibrary:
     @staticmethod
     def calculate_macd(
         close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9
-    ) -> Tuple[pd.Series, pd.Series, pd.Series]:
+    ) -> tuple[pd.Series, pd.Series, pd.Series]:
         """
         Calculate MACD.
 
@@ -104,7 +102,7 @@ class IndicatorLibrary:
     @staticmethod
     def calculate_bollinger_bands(
         close: pd.Series, period: int = 20, nbdevup: float = 2.0, nbdevdn: float = 2.0
-    ) -> Tuple[pd.Series, pd.Series, pd.Series]:
+    ) -> tuple[pd.Series, pd.Series, pd.Series]:
         """
         Calculate Bollinger Bands.
 

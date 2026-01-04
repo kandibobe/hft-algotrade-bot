@@ -30,7 +30,7 @@ import logging
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -115,8 +115,8 @@ class TradingFeatureStore:
 
     def __init__(
         self,
-        config_path: Optional[str] = None,
-        redis_url: Optional[str] = None,
+        config_path: str | None = None,
+        redis_url: str | None = None,
         enable_caching: bool = True,
         cache_ttl_hours: int = 1,
     ):
@@ -133,11 +133,11 @@ class TradingFeatureStore:
         self.redis_url = redis_url
         self.enable_caching = enable_caching
         self.cache_ttl_hours = cache_ttl_hours
-        self._store: Optional[FeatureStore] = None
+        self._store: FeatureStore | None = None
         self._initialized = False
-        self._feature_cache: Dict[str, Tuple[float, pd.DataFrame]] = (
-            {}
-        )  # cache_key -> (timestamp, features)
+        self._feature_cache: dict[
+            str, tuple[float, pd.DataFrame]
+        ] = {}  # cache_key -> (timestamp, features)
 
         # Create feature repository directory if it doesn't exist
         self._ensure_feature_repo()
@@ -271,7 +271,7 @@ class TradingFeatureStore:
             raise
 
     def get_online_features(
-        self, symbol: str, timestamp: datetime, feature_list: Optional[List[str]] = None
+        self, symbol: str, timestamp: datetime, feature_list: list[str] | None = None
     ) -> pd.DataFrame:
         """
         Get precomputed features for real-time inference (100x faster than recomputing!).
@@ -363,7 +363,7 @@ class TradingFeatureStore:
             )
 
     async def get_online_features_async(
-        self, symbol: str, timestamp: datetime, feature_list: Optional[List[str]] = None
+        self, symbol: str, timestamp: datetime, feature_list: list[str] | None = None
     ) -> pd.DataFrame:
         """
         Async version of get_online_features for non-blocking operation.
@@ -374,10 +374,10 @@ class TradingFeatureStore:
 
     def get_offline_features(
         self,
-        symbols: List[str],
-        start_date: Union[str, datetime],
-        end_date: Union[str, datetime],
-        feature_list: Optional[List[str]] = None,
+        symbols: list[str],
+        start_date: str | datetime,
+        end_date: str | datetime,
+        feature_list: list[str] | None = None,
     ) -> pd.DataFrame:
         """
         Get historical features for model training (offline features).
@@ -429,7 +429,7 @@ class TradingFeatureStore:
             return pd.DataFrame()
 
     def materialize_features(
-        self, start_date: Union[str, datetime], end_date: Union[str, datetime]
+        self, start_date: str | datetime, end_date: str | datetime
     ):
         """
         Materialize features from offline to online store.
@@ -460,7 +460,7 @@ class TradingFeatureStore:
         self,
         symbol: str,
         timestamp: datetime,
-        features: Dict[str, float],
+        features: dict[str, float],
         feature_view: str = "ohlcv_features",
     ):
         """
@@ -494,8 +494,8 @@ class TradingFeatureStore:
             raise
 
     def get_feature_stats(
-        self, symbol: Optional[str] = None, feature_view: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, symbol: str | None = None, feature_view: str | None = None
+    ) -> dict[str, Any]:
         """
         Get statistics about features in the store.
 
@@ -523,7 +523,7 @@ class TradingFeatureStore:
         logger.info("Feature cache cleared")
 
     def _get_cache_key(
-        self, symbol: str, timestamp: datetime, feature_list: Optional[List[str]] = None
+        self, symbol: str, timestamp: datetime, feature_list: list[str] | None = None
     ) -> str:
         """Generate cache key for features."""
         if feature_list:
@@ -554,7 +554,7 @@ class TradingFeatureStore:
         # Return a placeholder value
         return 0.8  # 80% cache hit rate placeholder
 
-    def _get_fallback_features(self, feature_refs: List[str]) -> pd.DataFrame:
+    def _get_fallback_features(self, feature_refs: list[str]) -> pd.DataFrame:
         """Return fallback features when Feast is unavailable."""
         # Create empty DataFrame with expected columns
         columns = []
@@ -570,10 +570,10 @@ class TradingFeatureStore:
         if columns:
             df.loc[0] = [np.nan] * len(columns)
 
-        logger.warning(f"Using fallback features (Feast unavailable)")
+        logger.warning("Using fallback features (Feast unavailable)")
         return df
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """Check feature store health."""
         try:
             if not self._initialized:
@@ -613,8 +613,8 @@ class MockFeatureStore(TradingFeatureStore):
 
     def __init__(
         self,
-        config_path: Optional[str] = None,
-        redis_url: Optional[str] = None,
+        config_path: str | None = None,
+        redis_url: str | None = None,
         enable_caching: bool = True,
         cache_ttl_hours: int = 1,
     ):
@@ -640,7 +640,7 @@ class MockFeatureStore(TradingFeatureStore):
         }
 
     def get_online_features(
-        self, symbol: str, timestamp: datetime, feature_list: Optional[List[str]] = None
+        self, symbol: str, timestamp: datetime, feature_list: list[str] | None = None
     ) -> pd.DataFrame:
         """Get mock online features."""
         if not self._initialized:
@@ -665,7 +665,7 @@ class MockFeatureStore(TradingFeatureStore):
 
         return mock_features
 
-    def _generate_mock_data(self) -> Dict[str, Dict[str, float]]:
+    def _generate_mock_data(self) -> dict[str, dict[str, float]]:
         """Generate mock feature data for testing."""
         # This would be replaced with actual mock data generation
         return {
@@ -704,7 +704,7 @@ class MockFeatureStore(TradingFeatureStore):
         }
 
     def _generate_mock_features(
-        self, symbol: str, timestamp: datetime, feature_list: Optional[List[str]] = None
+        self, symbol: str, timestamp: datetime, feature_list: list[str] | None = None
     ) -> pd.DataFrame:
         """Generate mock features for a symbol."""
         # Get base features for symbol or use default
@@ -771,8 +771,8 @@ class RedisFeatureStore(MockFeatureStore):
         host: str = "localhost",
         port: int = 6379,
         db: int = 0,
-        config_path: Optional[str] = None,
-        redis_url: Optional[str] = None,
+        config_path: str | None = None,
+        redis_url: str | None = None,
         enable_caching: bool = True,
         cache_ttl_hours: int = 1,
     ):
@@ -809,7 +809,7 @@ class RedisFeatureStore(MockFeatureStore):
             logger.error(f"Failed to connect to Redis: {e}")
             raise
 
-    def get_features(self, symbol: str, timestamp: str) -> Optional[dict]:
+    def get_features(self, symbol: str, timestamp: str) -> dict | None:
         """
         Get cached features from Redis.
 
@@ -856,7 +856,7 @@ class RedisFeatureStore(MockFeatureStore):
             logger.error(f"Error clearing Redis cache: {e}")
 
     def _get_cache_key(
-        self, symbol: str, timestamp: datetime, feature_list: Optional[List[str]] = None
+        self, symbol: str, timestamp: datetime, feature_list: list[str] | None = None
     ) -> str:
         """Generate cache key for features (overrides parent method)."""
         # Convert datetime to string for consistency with Redis keys
@@ -869,7 +869,7 @@ class RedisFeatureStore(MockFeatureStore):
         return f"features:{symbol}:{timestamp_str}:{features_hash}"
 
     def get_online_features(
-        self, symbol: str, timestamp: datetime, feature_list: Optional[List[str]] = None
+        self, symbol: str, timestamp: datetime, feature_list: list[str] | None = None
     ) -> pd.DataFrame:
         """
         Get online features using Redis cache.
@@ -923,7 +923,7 @@ class RedisFeatureStore(MockFeatureStore):
         except Exception as e:
             logger.error(f"Error clearing Redis cache: {e}")
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """Check Redis feature store health."""
         try:
             # Check Redis connection

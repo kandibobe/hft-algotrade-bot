@@ -8,12 +8,11 @@ Transform raw OHLCV data into ML-ready features.
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import joblib
 import numpy as np
 import pandas as pd
-from scipy.special import binom
 
 logger = logging.getLogger(__name__)
 
@@ -52,23 +51,23 @@ class FeatureConfig:
     include_time_features: bool = True
 
     # Custom features
-    custom_features: List[str] = field(default_factory=list)
+    custom_features: list[str] = field(default_factory=list)
 
 
 class FractionalDifferentiator:
     """
     Fractional differentiation for creating stationary time series while preserving memory.
-    
+
     Based on the binomial expansion method for fractional differentiation.
     This transforms non-stationary price series into stationary series suitable for ML models.
-    
+
     Reference: Advances in Financial Machine Learning, Marcos Lopez de Prado
     """
-    
+
     def __init__(self, d: float = 0.5, window_size: int = 100):
         """
         Initialize fractional differentiator.
-        
+
         Args:
             d: Fractional differentiation parameter (0 < d < 1)
                 d=0: original series
@@ -79,7 +78,7 @@ class FractionalDifferentiator:
         self.d = d
         self.window_size = window_size
         self._weights = self._calculate_weights()
-    
+
     def _calculate_weights(self) -> np.ndarray:
         """Calculate binomial weights for fractional differentiation."""
         weights = [1.0]
@@ -87,62 +86,62 @@ class FractionalDifferentiator:
             weight = -weights[-1] * (self.d - k + 1) / k
             weights.append(weight)
         return np.array(weights)
-    
+
     def differentiate(self, series: pd.Series) -> pd.Series:
         """
         Apply fractional differentiation to a time series.
-        
+
         Args:
             series: Input time series (must be sorted chronologically)
-            
+
         Returns:
             Fractionally differentiated series
         """
         if not isinstance(series.index, pd.DatetimeIndex):
             logger.warning("Series index is not DatetimeIndex, ensure chronological ordering")
-        
+
         # Convert to numpy for efficiency
         values = series.values
         n = len(values)
-        
+
         # Initialize result array
         result = np.full(n, np.nan, dtype=float)
-        
+
         # Apply fractional differentiation
         for i in range(self.window_size, n):
-            window = values[i - self.window_size + 1:i + 1]
+            window = values[i - self.window_size + 1 : i + 1]
             result[i] = np.dot(window[::-1], self._weights)
-        
+
         # For first window_size elements, use simple difference
         if self.window_size > 0:
-            result[:self.window_size] = np.diff(values[:self.window_size + 1], prepend=values[0])
-        
+            result[: self.window_size] = np.diff(values[: self.window_size + 1], prepend=values[0])
+
         return pd.Series(result, index=series.index)
-    
+
     def inverse_transform(self, diff_series: pd.Series, initial_value: float) -> pd.Series:
         """
         Inverse transform of fractional differentiation (approximate).
-        
+
         Note: Exact inversion is not possible, but this provides an approximation.
-        
+
         Args:
             diff_series: Fractionally differentiated series
             initial_value: Initial value of original series
-            
+
         Returns:
             Approximate original series
         """
         # This is a simplified approximation
         # In practice, fractional differentiation is not easily invertible
         logger.warning("Fractional differentiation inverse transform is approximate")
-        
+
         result = np.zeros(len(diff_series))
         result[0] = initial_value
-        
+
         for i in range(1, len(diff_series)):
             # Simple cumulative sum approximation
-            result[i] = result[i-1] + diff_series.iloc[i]
-        
+            result[i] = result[i - 1] + diff_series.iloc[i]
+
         return pd.Series(result, index=diff_series.index)
 
 
@@ -173,7 +172,7 @@ class FeatureEngineer:
         engineer.save_scaler("models/scaler.joblib")
     """
 
-    def __init__(self, config: Optional[FeatureConfig] = None):
+    def __init__(self, config: FeatureConfig | None = None):
         """
         Initialize feature engineer.
 
@@ -181,10 +180,10 @@ class FeatureEngineer:
             config: Feature engineering configuration
         """
         self.config = config or FeatureConfig()
-        self.feature_names: List[str] = []
+        self.feature_names: list[str] = []
         self.scaler = None
         self._is_fitted = False
-        self._scaled_feature_cols: List[str] = []
+        self._scaled_feature_cols: list[str] = []
         self._fractional_differentiator = None
         self._stationarity_applied = False
 
@@ -195,7 +194,7 @@ class FeatureEngineer:
         Safe to call on full dataset if you split afterwards.
         """
         logger.info(f"Preparing features from {len(df)} rows")
-        
+
         # Apply stationarity transformation if configured
         result = self._apply_stationarity_transformation(df.copy())
 
@@ -210,13 +209,13 @@ class FeatureEngineer:
     def fit_scaler_and_selector(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Fit scaler and feature selector on TRAINING data.
-        
+
         1. Identifies and removes correlated features (from Train)
         2. Fits scaler (on Train)
         3. Returns transformed Train data
         """
         result = df.copy()
-        
+
         # Remove highly correlated features (learn which to remove from train)
         if self.config.remove_correlated:
             result = self._remove_correlated_features(result)
@@ -238,25 +237,25 @@ class FeatureEngineer:
     def transform_scaler_and_selector(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Apply scaler and selector to TEST data.
-        
+
         1. Selects same features as Train
         2. Applies pre-fitted scaler
         """
         if not self._is_fitted:
             raise ValueError("Selector/Scaler not fitted! Call fit_scaler_and_selector() first.")
-            
+
         result = df.copy()
-        
+
         # Filter columns to match training set
         cols_to_keep = ["open", "high", "low", "close", "volume"] + [
             col for col in self.feature_names if col in result.columns
         ]
         result = result[[c for c in cols_to_keep if c in result.columns]]
-        
+
         # Apply pre-fitted scaler (NO fitting on test data!)
         if self.config.scale_features:
             result = self._apply_scale_features(result)
-            
+
         return result
 
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -357,7 +356,7 @@ class FeatureEngineer:
             result,
             fix_issues=True,  # Auto-fix issues in test mode as well
             raise_on_error=False,  # Don't fail, just warn
-            drop_low_variance=drop_low_variance
+            drop_low_variance=drop_low_variance,
         )
 
         # Apply same correlation filter (use stored feature names)
@@ -377,8 +376,12 @@ class FeatureEngineer:
         return result
 
     def validate_features(
-        self, df: pd.DataFrame, fix_issues: bool = False, raise_on_error: bool = True, drop_low_variance: bool = True
-    ) -> Tuple[bool, Dict[str, Any]]:
+        self,
+        df: pd.DataFrame,
+        fix_issues: bool = False,
+        raise_on_error: bool = True,
+        drop_low_variance: bool = True,
+    ) -> tuple[bool, dict[str, Any]]:
         """
         Validate feature data quality.
 
@@ -419,24 +422,24 @@ class FeatureEngineer:
                 # Smart filling: forward fill first, then backward fill, then fill with 0
                 for col in nan_cols:
                     # For price-related columns, use forward fill then backward fill
-                    if col in ['open', 'high', 'low', 'close', 'volume']:
+                    if col in ["open", "high", "low", "close", "volume"]:
                         df[col] = df[col].ffill().bfill().fillna(0)
                     # For indicator columns, fill with 0 or appropriate default
-                    elif 'rsi' in col.lower():
+                    elif "rsi" in col.lower():
                         df[col] = df[col].fillna(50)  # RSI default to neutral 50
-                    elif 'stoch' in col.lower():
+                    elif "stoch" in col.lower():
                         df[col] = df[col].fillna(50)  # Stochastic default to 50
-                    elif 'bb_' in col.lower():
+                    elif "bb_" in col.lower():
                         # For Bollinger Bands, fill with price or moving average
-                        if col == 'bb_position':
+                        if col == "bb_position":
                             df[col] = df[col].fillna(0.5)  # Middle of band
                         else:
-                            df[col] = df[col].ffill().bfill().fillna(df['close'])
-                    elif 'atr' in col.lower():
-                        df[col] = df[col].ffill().bfill().fillna(df['close'] * 0.01)
-                    elif 'macd' in col.lower():
+                            df[col] = df[col].ffill().bfill().fillna(df["close"])
+                    elif "atr" in col.lower():
+                        df[col] = df[col].ffill().bfill().fillna(df["close"] * 0.01)
+                    elif "macd" in col.lower():
                         df[col] = df[col].fillna(0)  # MACD default to 0
-                    elif 'returns' in col.lower() or 'change' in col.lower():
+                    elif "returns" in col.lower() or "change" in col.lower():
                         df[col] = df[col].fillna(0)  # Returns default to 0
                     else:
                         # Generic fill: forward fill, backward fill, then 0
@@ -468,10 +471,10 @@ class FeatureEngineer:
                     if col in df.columns:
                         col_data = df[col]
                         if isinstance(col_data, pd.DataFrame):
-                             # Update all duplicates
-                             df[col] = col_data.replace([np.inf, -np.inf], np.nan).ffill().fillna(0)
+                            # Update all duplicates
+                            df[col] = col_data.replace([np.inf, -np.inf], np.nan).ffill().fillna(0)
                         else:
-                             df[col] = col_data.replace([np.inf, -np.inf], np.nan).ffill().fillna(0)
+                            df[col] = col_data.replace([np.inf, -np.inf], np.nan).ffill().fillna(0)
 
         # Check for low variance features (potentially useless)
         if len(df) > 1:
@@ -485,7 +488,7 @@ class FeatureEngineer:
                     f"Found {len(low_var_cols)} low-variance features "
                     f"(var < {low_var_threshold}): {low_var_cols[:5]}..."
                 )
-                
+
                 if fix_issues and drop_low_variance:
                     # Drop low variance columns
                     # Filter only columns that exist (in case of duplicates or changes)
@@ -497,7 +500,7 @@ class FeatureEngineer:
         # Check for extreme outliers (beyond 5 std devs)
         for col in numeric_cols:
             if col not in df.columns:
-                continue # Skip dropped columns
+                continue  # Skip dropped columns
 
             if col in ["open", "high", "low", "close", "volume"]:
                 continue  # Skip OHLCV columns
@@ -521,7 +524,11 @@ class FeatureEngineer:
                     outlier_pct = num_outliers / len(df) * 100
                     if outlier_pct > 1.0:  # More than 1% outliers
                         issues["outlier_columns"].append(
-                            {"column": col, "count": int(num_outliers), "percentage": float(outlier_pct)}
+                            {
+                                "column": col,
+                                "count": int(num_outliers),
+                                "percentage": float(outlier_pct),
+                            }
                         )
 
                         if fix_issues:
@@ -556,74 +563,81 @@ class FeatureEngineer:
 
         return (not has_critical_issues, issues)
 
-    def _apply_stationarity_transformation(self, df: pd.DataFrame, is_training: bool = True) -> pd.DataFrame:
+    def _apply_stationarity_transformation(
+        self, df: pd.DataFrame, is_training: bool = True
+    ) -> pd.DataFrame:
         """
         Apply stationarity transformation to price data.
-        
+
         Options:
         1. Fractional differentiation (preserves memory)
         2. Log returns (simpler, less memory)
-        
+
         Args:
             df: DataFrame with OHLCV data
             is_training: Whether this is training data (affects fitting)
-            
+
         Returns:
             DataFrame with stationarity transformations applied
         """
         if not self.config.enforce_stationarity:
             return df
-        
+
         result = df.copy()
-        
+
         # Apply fractional differentiation if configured
         if self.config.fractional_differentiation_d > 0 and not self.config.use_log_returns:
             if is_training or self._fractional_differentiator is not None:
                 if is_training:
                     # Create and fit fractional differentiator on training data
                     self._fractional_differentiator = FractionalDifferentiator(
-                        d=self.config.fractional_differentiation_d,
-                        window_size=100
+                        d=self.config.fractional_differentiation_d, window_size=100
                     )
-                
+
                 # Apply fractional differentiation to close prices
-                result['close_fractional_diff'] = self._fractional_differentiator.differentiate(result['close'])
-                
+                result["close_fractional_diff"] = self._fractional_differentiator.differentiate(
+                    result["close"]
+                )
+
                 # Replace original close with fractionally differentiated version for feature engineering
                 # Keep original close for reference
-                result['close_original'] = result['close']
-                result['close'] = result['close_fractional_diff'].fillna(result['close'])
-                
-                logger.info(f"Applied fractional differentiation (d={self.config.fractional_differentiation_d})")
-        
+                result["close_original"] = result["close"]
+                result["close"] = result["close_fractional_diff"].fillna(result["close"])
+
+                logger.info(
+                    f"Applied fractional differentiation (d={self.config.fractional_differentiation_d})"
+                )
+
         # Apply log returns if configured (simpler alternative)
         elif self.config.use_log_returns:
             try:
                 # Safe log calculation
                 # Ensure close prices are positive and non-zero to avoid log errors
-                close_prices = result['close'].replace(0, np.nan).ffill()
+                close_prices = result["close"].replace(0, np.nan).ffill()
                 prev_close = close_prices.shift(1)
-                
+
                 # Clip ratio to avoid extreme values (though unlikely with price data)
                 price_ratio = close_prices / prev_close
                 price_ratio = price_ratio.clip(lower=1e-9)
-                
-                result['log_returns'] = np.log(price_ratio).fillna(0)
+
+                result["log_returns"] = np.log(price_ratio).fillna(0)
             except Exception as e:
                 logger.error(f"Error calculating log_returns: {e}")
-                result['log_returns'] = result['close'].pct_change(fill_method=None).fillna(0)
-            
+                result["log_returns"] = result["close"].pct_change(fill_method=None).fillna(0)
+
             # For feature engineering, we can use log returns directly
             # or create a cumulative sum for a stationary price-like series
-            result['close_log_cumsum'] = result['log_returns'].cumsum()
-            
+            result["close_log_cumsum"] = result["log_returns"].cumsum()
+
             # Replace close with log cumulative sum for feature engineering
             # This ensures all technical indicators are computed on stationary series
-            result['close_original'] = result['close']
-            result['close'] = result['close_log_cumsum']
-            
-            logger.info("Applied log returns for stationarity - using close_log_cumsum for feature engineering")
-        
+            result["close_original"] = result["close"]
+            result["close"] = result["close_log_cumsum"]
+
+            logger.info(
+                "Applied log returns for stationarity - using close_log_cumsum for feature engineering"
+            )
+
         self._stationarity_applied = True
         return result
 
@@ -658,11 +672,11 @@ class FeatureEngineer:
         # Prevent massive data loss due to rolling windows by backfilling initial NaNs
         # Rolling windows create NaNs at the start. If we don't fill them,
         # _apply_aggressive_cleaning will drop all these rows (potentially 40%+ of data).
-        
+
         # FIX: Replace Inf with NaN first, so they can be filled
         numeric_cols = result.select_dtypes(include=[np.number]).columns
         result[numeric_cols] = result[numeric_cols].replace([np.inf, -np.inf], np.nan)
-        
+
         # We forward fill first (to fill gaps) then backfill (to fill initial NaNs)
         result = result.ffill().bfill()
 
@@ -672,7 +686,7 @@ class FeatureEngineer:
         """Add price-based features with lag features and rolling statistics."""
         # Returns
         df["returns"] = df["close"].pct_change(fill_method=None)
-        
+
         try:
             # Safe log returns
             # Use log1p(pct_change) which is equivalent to log(close/prev_close) but safer for small changes
@@ -683,16 +697,16 @@ class FeatureEngineer:
         except Exception as e:
             logger.warning(f"Error calculating returns_log: {e}. Using simple returns.")
             df["returns_log"] = df["returns"]
-        
+
         # Multiple timeframes returns
         for period in [2, 3, 5, 10, 20]:
             df[f"returns_{period}"] = df["close"].pct_change(period, fill_method=None)
-        
+
         # Lag features (past prices)
         for lag in [1, 2, 3, 5, 10]:
             df[f"close_lag_{lag}"] = df["close"].shift(lag)
             df[f"volume_lag_{lag}"] = df["volume"].shift(lag)
-        
+
         # Price position in range
         df["price_position"] = (df["close"] - df["low"]) / (df["high"] - df["low"] + 1e-10)
 
@@ -701,15 +715,15 @@ class FeatureEngineer:
 
         # Price change from open
         df["intraday_return"] = (df["close"] - df["open"]) / df["open"]
-        
+
         # High/Low ratios
         df["high_low_ratio"] = df["high"] / (df["low"] + 1e-10)
         df["close_open_ratio"] = df["close"] / (df["open"] + 1e-10)
-        
+
         # Price momentum
         for period in [5, 10, 20]:
             df[f"price_momentum_{period}"] = df["close"] / df["close"].shift(period) - 1
-        
+
         # Rolling statistics
         for window in [5, 10, 20]:
             df[f"close_rolling_mean_{window}"] = df["close"].rolling(window).mean()
@@ -717,13 +731,19 @@ class FeatureEngineer:
             df[f"close_rolling_min_{window}"] = df["close"].rolling(window).min()
             df[f"close_rolling_max_{window}"] = df["close"].rolling(window).max()
             df[f"volume_rolling_mean_{window}"] = df["volume"].rolling(window).mean()
-        
+
         # Price vs rolling statistics
         for window in [5, 10, 20]:
-            df[f"close_vs_rolling_mean_{window}"] = (df["close"] - df[f"close_rolling_mean_{window}"]) / df[f"close_rolling_mean_{window}"]
-            df[f"close_vs_rolling_min_{window}"] = (df["close"] - df[f"close_rolling_min_{window}"]) / df[f"close_rolling_min_{window}"]
-            df[f"close_vs_rolling_max_{window}"] = (df["close"] - df[f"close_rolling_max_{window}"]) / df[f"close_rolling_max_{window}"]
-        
+            df[f"close_vs_rolling_mean_{window}"] = (
+                df["close"] - df[f"close_rolling_mean_{window}"]
+            ) / df[f"close_rolling_mean_{window}"]
+            df[f"close_vs_rolling_min_{window}"] = (
+                df["close"] - df[f"close_rolling_min_{window}"]
+            ) / df[f"close_rolling_min_{window}"]
+            df[f"close_vs_rolling_max_{window}"] = (
+                df["close"] - df[f"close_rolling_max_{window}"]
+            ) / df[f"close_rolling_max_{window}"]
+
         # Volatility features
         df["returns_volatility_5"] = df["returns"].rolling(5).std()
         df["returns_volatility_10"] = df["returns"].rolling(10).std()
@@ -745,17 +765,17 @@ class FeatureEngineer:
         # VWAP should only use past data, not future data
         vwap_window = self.config.short_period
         typical_price = (df["high"] + df["low"] + df["close"]) / 3
-        
+
         # Calculate VWAP
-        vwap_raw = (typical_price * df["volume"]).rolling(vwap_window).sum() / df[
-            "volume"
-        ].rolling(vwap_window).sum()
-        
+        vwap_raw = (typical_price * df["volume"]).rolling(vwap_window).sum() / df["volume"].rolling(
+            vwap_window
+        ).sum()
+
         # CRITICAL FIX: Shift VWAP by 1 to avoid lookahead bias.
         # If we are at Open[i], we cannot know Volume[i] or Close[i].
         # We must use VWAP calculated up to Close[i-1].
         df["vwap"] = vwap_raw.shift(1)
-        
+
         # Recalculate diff using shifted VWAP
         df["vwap_diff"] = (df["close"] - df["vwap"]) / (df["vwap"] + 1e-10)
 
@@ -854,10 +874,10 @@ class FeatureEngineer:
     def _add_meta_labeling_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Add features for Meta-Labeling (De Prado Methodology).
-        
-        Meta-Labeling uses a secondary model to predict whether 
+
+        Meta-Labeling uses a secondary model to predict whether
         primary signals will be profitable.
-        
+
         Features added:
         1. Primary signal strength (combination of RSI, MACD, etc.)
         2. Volatility features (for risk assessment)
@@ -867,91 +887,97 @@ class FeatureEngineer:
         """
         # 1. Primary signal strength (simple combination of indicators)
         # RSI-based signal: RSI < 30 (oversold) or RSI > 70 (overbought)
-        if 'rsi' in df.columns:
-            rsi_signal = ((df['rsi'] < 30) | (df['rsi'] > 70)).astype(int)
-            rsi_strength = np.abs(df['rsi'] - 50) / 50  # Normalized 0-1
+        if "rsi" in df.columns:
+            rsi_signal = ((df["rsi"] < 30) | (df["rsi"] > 70)).astype(int)
+            rsi_strength = np.abs(df["rsi"] - 50) / 50  # Normalized 0-1
         else:
             rsi_signal = 0
             rsi_strength = 0
-        
+
         # MACD signal: MACD histogram positive and increasing
-        if 'macd_hist' in df.columns:
-            macd_signal = ((df['macd_hist'] > 0) & (df['macd_hist'] > df['macd_hist'].shift(1))).astype(int)
-            macd_strength = df['macd_hist'].abs() / (df['macd_hist'].abs().rolling(20).mean() + 1e-10)
+        if "macd_hist" in df.columns:
+            macd_signal = (
+                (df["macd_hist"] > 0) & (df["macd_hist"] > df["macd_hist"].shift(1))
+            ).astype(int)
+            macd_strength = df["macd_hist"].abs() / (
+                df["macd_hist"].abs().rolling(20).mean() + 1e-10
+            )
             macd_strength = macd_strength.clip(upper=2.0) / 2.0  # Normalize to 0-1
         else:
             macd_signal = 0
             macd_strength = 0
-        
+
         # EMA crossover signal
-        if 'ema_short' in df.columns and 'ema_medium' in df.columns:
-            ema_cross_signal = (df['ema_short'] > df['ema_medium']).astype(int)
-            ema_strength = (df['ema_short'] - df['ema_medium']).abs() / df['ema_medium'] * 100
+        if "ema_short" in df.columns and "ema_medium" in df.columns:
+            ema_cross_signal = (df["ema_short"] > df["ema_medium"]).astype(int)
+            ema_strength = (df["ema_short"] - df["ema_medium"]).abs() / df["ema_medium"] * 100
             ema_strength = ema_strength.clip(upper=5.0) / 5.0  # Normalize to 0-1
         else:
             ema_cross_signal = 0
             ema_strength = 0
-        
+
         # Combined primary signal (binary)
         combined_signal = (rsi_signal + macd_signal + ema_cross_signal) >= 2
         # Handle case where combined_signal is a scalar boolean (if all inputs are 0)
         if isinstance(combined_signal, (bool, np.bool_)):
-            df['primary_signal'] = int(combined_signal)
+            df["primary_signal"] = int(combined_signal)
         else:
-            df['primary_signal'] = combined_signal.astype(int)
-        
+            df["primary_signal"] = combined_signal.astype(int)
+
         # Primary signal strength (0-1 scale)
-        df['primary_signal_strength'] = (rsi_strength + macd_strength + ema_strength) / 3
-        
+        df["primary_signal_strength"] = (rsi_strength + macd_strength + ema_strength) / 3
+
         # 2. Volatility features (already have volatility, but add more)
-        if 'volatility' not in df.columns:
+        if "volatility" not in df.columns:
             # Ensure returns exist
-            if 'returns' not in df.columns:
-                df['returns'] = df['close'].pct_change(fill_method=None)
-            df['volatility'] = df['returns'].rolling(self.config.medium_period).std()
-        
+            if "returns" not in df.columns:
+                df["returns"] = df["close"].pct_change(fill_method=None)
+            df["volatility"] = df["returns"].rolling(self.config.medium_period).std()
+
         # Volatility regime (high/medium/low)
         # Calculate quantiles separately to avoid list issue
-        vol_q33 = df['volatility'].rolling(100).quantile(0.33)
-        vol_q66 = df['volatility'].rolling(100).quantile(0.66)
-        df['volatility_regime'] = 0  # Default medium
-        df.loc[df['volatility'] > vol_q66, 'volatility_regime'] = 1  # High
-        df.loc[df['volatility'] < vol_q33, 'volatility_regime'] = -1  # Low
-        
+        vol_q33 = df["volatility"].rolling(100).quantile(0.33)
+        vol_q66 = df["volatility"].rolling(100).quantile(0.66)
+        df["volatility_regime"] = 0  # Default medium
+        df.loc[df["volatility"] > vol_q66, "volatility_regime"] = 1  # High
+        df.loc[df["volatility"] < vol_q33, "volatility_regime"] = -1  # Low
+
         # 3. Spread estimation (bid-ask spread proxy)
         # Use high-low range as proxy for spread
-        df['spread_pct'] = (df['high'] - df['low']) / df['close'] * 100
-        df['spread_ratio'] = df['spread_pct'] / df['spread_pct'].rolling(20).mean()
-        
+        df["spread_pct"] = (df["high"] - df["low"]) / df["close"] * 100
+        df["spread_ratio"] = df["spread_pct"] / df["spread_pct"].rolling(20).mean()
+
         # 4. Order book imbalance proxy
         # Use volume-price relationship as proxy
-        if 'volume' in df.columns and 'close' in df.columns:
+        if "volume" in df.columns and "close" in df.columns:
             # Volume-weighted price change
-            price_change = df['close'].pct_change(fill_method=None)
-            volume_change = df['volume'].pct_change(fill_method=None)
-            df['order_imbalance'] = price_change * volume_change
-            
+            price_change = df["close"].pct_change(fill_method=None)
+            volume_change = df["volume"].pct_change(fill_method=None)
+            df["order_imbalance"] = price_change * volume_change
+
             # Normalized order imbalance - optimized to avoid lambda
             # Calculate rolling mean and std first
-            rolling_mean = df['order_imbalance'].rolling(20).mean()
-            rolling_std = df['order_imbalance'].rolling(20).std()
-            df['order_imbalance_norm'] = (df['order_imbalance'] - rolling_mean) / (rolling_std + 1e-10)
-        
+            rolling_mean = df["order_imbalance"].rolling(20).mean()
+            rolling_std = df["order_imbalance"].rolling(20).std()
+            df["order_imbalance_norm"] = (df["order_imbalance"] - rolling_mean) / (
+                rolling_std + 1e-10
+            )
+
         # 5. Market regime features
         # Trend vs mean reversion regime
-        if 'adx' in df.columns:
-            df['trend_regime'] = (df['adx'] > 25).astype(int)  # Strong trend if ADX > 25
-        
+        if "adx" in df.columns:
+            df["trend_regime"] = (df["adx"] > 25).astype(int)  # Strong trend if ADX > 25
+
         # Volatility clustering
-        df['volatility_cluster'] = (df['volatility'] > df['volatility'].shift(1)).astype(int)
-        
+        df["volatility_cluster"] = (df["volatility"] > df["volatility"].shift(1)).astype(int)
+
         # 6. Signal context features
         # How many consecutive signals
-        df['signal_consecutive'] = df['primary_signal'].rolling(5).sum()
-        
+        df["signal_consecutive"] = df["primary_signal"].rolling(5).sum()
+
         # Time since last signal - optimized version
         # Create a Series with the last signal time for each row
-        signal_mask = df['primary_signal'] == 1
+        signal_mask = df["primary_signal"] == 1
         if signal_mask.any():
             # Forward fill the last signal time
             last_signal_times = df.index.where(signal_mask)
@@ -960,63 +986,65 @@ class FeatureEngineer:
             # Calculate hours since last signal
             # Convert to Timedelta and get total seconds for each element
             time_diffs = df.index - last_signal_times_ffilled
-            
+
             def get_hours(td):
                 if pd.isna(td):
                     return 24.0
-                if hasattr(td, 'total_seconds'):
+                if hasattr(td, "total_seconds"):
                     return td.total_seconds() / 3600.0
                 try:
                     # Try to convert to float (assuming it might be seconds/nanoseconds)
                     # If index is timestamp (int/float), difference is number
                     val = float(td)
                     # Heuristic: if value is huge, it's likely ms or ns
-                    if val > 1e12: # nanoseconds
+                    if val > 1e12:  # nanoseconds
                         return val / 1e9 / 3600.0
-                    elif val > 1e9: # milliseconds
+                    elif val > 1e9:  # milliseconds
                         return val / 1000.0 / 3600.0
-                    else: # seconds
+                    else:  # seconds
                         return val / 3600.0
                 except (ValueError, TypeError):
                     return 24.0
 
-            df['time_since_signal'] = time_diffs.apply(get_hours)
+            df["time_since_signal"] = time_diffs.apply(get_hours)
             # Fill any remaining NaN values with 24 hours
-            df['time_since_signal'] = df['time_since_signal'].fillna(24)
+            df["time_since_signal"] = df["time_since_signal"].fillna(24)
         else:
-            df['time_since_signal'] = 24
-        
+            df["time_since_signal"] = 24
+
         # Normalize time since signal
         # We start collecting new features here to avoid fragmentation
         new_features = {}
-        
-        new_features['time_since_signal_norm'] = df['time_since_signal'].clip(upper=24) / 24
-        
+
+        new_features["time_since_signal_norm"] = df["time_since_signal"].clip(upper=24) / 24
+
         # 7. Additional meta-features as requested
         # Volatility Z-Score: How many standard deviations current volatility is from its mean
-        if 'volatility' in df.columns:
+        if "volatility" in df.columns:
             # Calculate rolling mean and std of volatility
-            vol_mean = df['volatility'].rolling(window=100).mean()
-            vol_std = df['volatility'].rolling(window=100).std()
-            new_features['volatility_zscore'] = (df['volatility'] - vol_mean) / (vol_std + 1e-10)
+            vol_mean = df["volatility"].rolling(window=100).mean()
+            vol_std = df["volatility"].rolling(window=100).std()
+            new_features["volatility_zscore"] = (df["volatility"] - vol_mean) / (vol_std + 1e-10)
             logger.debug("Added volatility_zscore feature")
-        
+
         # Volume Shock: Abnormal volume relative to recent history
-        if 'volume' in df.columns:
+        if "volume" in df.columns:
             # Calculate rolling statistics for volume
-            volume_mean = df['volume'].rolling(window=20).mean()
-            volume_std = df['volume'].rolling(window=20).std()
+            volume_mean = df["volume"].rolling(window=20).mean()
+            volume_std = df["volume"].rolling(window=20).std()
             # Volume shock is how many standard deviations current volume is from mean
-            new_features['volume_shock'] = (df['volume'] - volume_mean) / (volume_std + 1e-10)
+            new_features["volume_shock"] = (df["volume"] - volume_mean) / (volume_std + 1e-10)
             # Also create a binary indicator for extreme volume shocks (> 2 std devs)
-            new_features['volume_shock_extreme'] = (new_features['volume_shock'].abs() > 2).astype(int)
+            new_features["volume_shock_extreme"] = (new_features["volume_shock"].abs() > 2).astype(
+                int
+            )
             logger.debug("Added volume_shock and volume_shock_extreme features")
-        
+
         # Batch add new features to avoid fragmentation
         if new_features:
             new_features_df = pd.DataFrame(new_features, index=df.index)
             df = pd.concat([df, new_features_df], axis=1)
-        
+
         return df
 
     def _add_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1036,15 +1064,18 @@ class FeatureEngineer:
         day_cos = np.cos(2 * np.pi * day_of_week / 7)
 
         # Create a new DataFrame with all time features to avoid fragmentation
-        time_features = pd.DataFrame({
-            "hour": hour,
-            "day_of_week": day_of_week,
-            "month": month,
-            "hour_sin": hour_sin,
-            "hour_cos": hour_cos,
-            "day_sin": day_sin,
-            "day_cos": day_cos
-        }, index=df.index)
+        time_features = pd.DataFrame(
+            {
+                "hour": hour,
+                "day_of_week": day_of_week,
+                "month": month,
+                "hour_sin": hour_sin,
+                "hour_cos": hour_cos,
+                "day_sin": day_sin,
+                "day_cos": day_cos,
+            },
+            index=df.index,
+        )
 
         # Concatenate with original df to avoid fragmentation
         df = pd.concat([df, time_features], axis=1)
@@ -1054,26 +1085,26 @@ class FeatureEngineer:
     def _apply_aggressive_cleaning(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Apply cleaning to remove NaN and Inf values.
-        
+
         Steps:
         1. Replace all np.inf and -np.inf with NaN
         2. Impute NaNs (Forward Fill)
         3. Drop remaining NaNs (at the beginning) - NO bfill to avoid leakage
-        
-        NOTE: We do NOT drop rows in live trading to prevent "silent failures" 
+
+        NOTE: We do NOT drop rows in live trading to prevent "silent failures"
         where the strategy goes blind due to a single NaN.
-        
+
         Args:
             df: DataFrame with engineered features
-            
+
         Returns:
             Cleaned DataFrame with no NaN or Inf values
         """
         logger.info(f"Applying cleaning: {len(df)} rows")
-        
+
         # Make a copy to avoid modifying the original
         result = df.copy()
-        
+
         # Step 1: Replace all inf values with NaN
         numeric_cols = result.select_dtypes(include=[np.number]).columns
         # Avoid recursion error in pandas replace by iterating columns
@@ -1086,21 +1117,23 @@ class FeatureEngineer:
             except Exception:
                 # Fallback for safe handling
                 result[col] = result[col].replace([np.inf, -np.inf], np.nan)
-        
+
         # Step 2: Impute NaNs
         # Count NaNs before
         nan_count_before = result.isnull().sum().sum()
-        
+
         if nan_count_before > 0:
-            logger.warning(f"Found {nan_count_before} NaNs. Applying strict cleaning (ffill + dropna).")
-            
+            logger.warning(
+                f"Found {nan_count_before} NaNs. Applying strict cleaning (ffill + dropna)."
+            )
+
             # Forward fill (propagate last valid value)
             result = result.ffill()
-            
+
             # STAGE 3 FIX: Removed bfill() to prevent future data leakage.
             # Instead of backfilling, we drop the initial rows that contain NaNs.
             # This reduces dataset size slightly but guarantees 0 leakage.
-            
+
             # Check if any NaNs remain (these would be at the start)
             if result.isnull().any().any():
                 rows_before = len(result)
@@ -1109,13 +1142,13 @@ class FeatureEngineer:
                 logger.info(f"Dropped {rows_dropped} rows with initial NaNs to prevent leakage.")
             else:
                 logger.info("No initial NaNs found after ffill.")
-                
+
             nan_count_after = result.isnull().sum().sum()
             if nan_count_after == 0:
                 logger.info("NaN cleaning successful.")
             else:
                 logger.error(f"NaN cleaning failed! {nan_count_after} NaNs remain.")
-        
+
         return result
 
     def _remove_correlated_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1244,7 +1277,7 @@ class FeatureEngineer:
         input_path = Path(path)
         # Use mmap_mode='r' to share memory across processes (crucial for Hyperopt)
         try:
-            scaler_data = joblib.load(input_path, mmap_mode='r')
+            scaler_data = joblib.load(input_path, mmap_mode="r")
         except Exception:
             # Fallback if mmap fails (e.g. compressed file)
             logger.warning(f"Failed to mmap scaler from {path}, loading into RAM")
@@ -1257,7 +1290,7 @@ class FeatureEngineer:
 
         logger.info(f"Scaler loaded from {input_path} ({len(self.feature_names)} features)")
 
-    def get_feature_names(self) -> List[str]:
+    def get_feature_names(self) -> list[str]:
         """Get list of generated feature names."""
         return self.feature_names
 
@@ -1270,10 +1303,10 @@ class FeatureEngineer:
         """
         Generate indicators using FeatureEngineer for Freqtrade strategy.
         Ensures consistent feature engineering between training and live trading.
-        
+
         Args:
             dataframe: Input OHLCV dataframe
-            
+
         Returns:
             Dataframe with added indicators (unscaled)
         """
@@ -1284,9 +1317,9 @@ class FeatureEngineer:
             include_momentum_features=True,
             include_volatility_features=True,
             include_trend_features=True,
-            include_time_features=False, # Time features often cause issues in live if not careful
-            scale_features=False, # Indicators should be raw
-            remove_correlated=False # Keep all
+            include_time_features=False,  # Time features often cause issues in live if not careful
+            scale_features=False,  # Indicators should be raw
+            remove_correlated=False,  # Keep all
         )
         engineer = cls(config)
         return engineer.prepare_data(dataframe)

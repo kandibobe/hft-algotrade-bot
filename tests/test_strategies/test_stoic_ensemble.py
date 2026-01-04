@@ -154,11 +154,15 @@ class TestStoicEnsembleStrategy:
         # High volatility should reduce stake
         assert adjusted_stake < proposed_stake, "Stake not reduced for high volatility"
 
-    @pytest.mark.skip(reason="V5 handles liquidity via real-time spread/volume, not hardcoded hours")
-    def test_confirm_trade_entry_rejects_low_liquidity_hours(self, stoic_strategy):
-        """Test that strategy rejects trades during low liquidity hours."""
-        # Test during low liquidity hours (0-5 AM UTC)
-        low_liquidity_time = datetime(2024, 1, 1, 2, 0, 0)
+    def test_confirm_trade_entry_rejects_high_spread(self, stoic_strategy):
+        """Test that strategy rejects trades with high spread."""
+        # Mock ticker with high spread
+        stoic_strategy.dp = MagicMock()
+        stoic_strategy.dp.ticker.return_value = {
+            'bid': 100.0,
+            'ask': 101.0,  # 1% spread
+            'quoteVolume': 1000000
+        }
 
         result = stoic_strategy.confirm_trade_entry(
             pair="BTC/USDT",
@@ -166,17 +170,30 @@ class TestStoicEnsembleStrategy:
             amount=1.0,
             rate=100.0,
             time_in_force="GTC",
-            current_time=low_liquidity_time,
+            current_time=datetime.utcnow(),
             entry_tag=None,
             side="long",
         )
 
-        assert result is False, "Should reject trade during low liquidity hours"
+        assert result is False, "Should reject trade due to high spread"
 
-    def test_confirm_trade_entry_accepts_normal_hours(self, stoic_strategy):
-        """Test that strategy accepts trades during normal hours."""
-        # Test during normal hours (10 AM UTC)
-        normal_time = datetime(2024, 1, 1, 10, 0, 0)
+    def test_confirm_trade_entry_accepts_normal_spread(self, stoic_strategy):
+        """Test that strategy accepts trades with normal spread."""
+        # Mock ticker with normal spread
+        stoic_strategy.dp = MagicMock()
+        stoic_strategy.dp.ticker.return_value = {
+            'bid': 100.0,
+            'ask': 100.05,  # 0.05% spread
+            'quoteVolume': 1000000
+        }
+
+        # Ensure market safety check passes (mocking it if needed, or relying on defaults)
+        # Assuming check_market_safety returns True by default or if mocked
+        # We might need to mock check_market_safety if it relies on other things
+        # But let's try with just DP mock first.
+        # Actually, check_market_safety might call other things.
+        # Let's mock check_market_safety to be sure we are testing spread.
+        stoic_strategy.check_market_safety = MagicMock(return_value=True)
 
         result = stoic_strategy.confirm_trade_entry(
             pair="BTC/USDT",
@@ -184,12 +201,12 @@ class TestStoicEnsembleStrategy:
             amount=1.0,
             rate=100.0,
             time_in_force="GTC",
-            current_time=normal_time,
+            current_time=datetime.utcnow(),
             entry_tag=None,
             side="long",
         )
 
-        assert result is True, "Should accept trade during normal hours"
+        assert result is True, "Should accept trade with normal spread"
 
     def test_custom_exit_emergency_24h(self, stoic_strategy, mock_trade):
         """Test emergency exit after 24 hours with loss."""
@@ -208,18 +225,18 @@ class TestStoicEnsembleStrategy:
         # V5 priority: Time Decay triggers first
         assert result in ["emergency_exit_24h", "time_decay_exit"], "Should trigger emergency exit"
 
-    @pytest.mark.skip(reason="V5 uses trailing stop logic instead of hard TP")
-    def test_custom_exit_take_profit_10pct(self, stoic_strategy, mock_trade):
-        """Test take profit at 10% gain."""
+    def test_custom_exit_no_hard_tp(self, stoic_strategy, mock_trade):
+        """Test that strategy does not use hard TP exit (relies on trailing)."""
         result = stoic_strategy.custom_exit(
             pair="BTC/USDT",
             trade=mock_trade,
             current_time=datetime.utcnow(),
             current_rate=110.0,
-            current_profit=0.11,  # Must be > 0.10 to trigger
+            current_profit=0.11,  # 11% profit
         )
 
-        assert result == "take_profit_10pct", "Should trigger 10% take profit"
+        # Should NOT return a fixed TP string, should be None (handled by stoploss/trailing)
+        assert result is None, "Should rely on trailing stop, not hard exit"
 
     def test_custom_exit_no_exit(self, stoic_strategy, mock_trade):
         """Test that custom exit returns None when no exit conditions met."""

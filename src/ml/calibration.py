@@ -21,7 +21,6 @@ Version: 1.1.0
 """
 
 import logging
-from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -57,7 +56,12 @@ class ProbabilityCalibrator:
             f"threshold={percentile_threshold:.2f})"
         )
 
-    def is_signal(self, probabilities: pd.Series, window_size: Optional[int] = None, threshold: Optional[float] = None) -> pd.Series:
+    def is_signal(
+        self,
+        probabilities: pd.Series,
+        window_size: int | None = None,
+        threshold: float | None = None,
+    ) -> pd.Series:
         """
         Determine if current probabilities constitute a signal based on historical context.
 
@@ -83,16 +87,13 @@ class ProbabilityCalibrator:
         # but also ensure it's not larger than the data length
         min_p = min(win_size, 100, len(probabilities))
         if min_p > 1:
-             # Safety check for very short dataframes
-             min_p = min(min_p, len(probabilities))
+            # Safety check for very short dataframes
+            min_p = min(min_p, len(probabilities))
 
         # Calculate rolling rank (percentile)
         # pct=True returns 0.0 to 1.0 representing the percentile
         # This operation is vectorized and efficient
-        rolling_rank = probabilities.rolling(
-            window=win_size,
-            min_periods=min_p
-        ).rank(pct=True)
+        rolling_rank = probabilities.rolling(window=win_size, min_periods=min_p).rank(pct=True)
 
         # Fill NaN values (start of series) with 0.0 (no signal)
         rolling_rank = rolling_rank.fillna(0.0)
@@ -122,15 +123,9 @@ class ProbabilityCalibrator:
 
         min_p = min(self.window_size, 100, len(probabilities))
 
-        rolling_mean = probabilities.rolling(
-            window=self.window_size,
-            min_periods=min_p
-        ).mean()
+        rolling_mean = probabilities.rolling(window=self.window_size, min_periods=min_p).mean()
 
-        rolling_std = probabilities.rolling(
-            window=self.window_size,
-            min_periods=min_p
-        ).std()
+        rolling_std = probabilities.rolling(window=self.window_size, min_periods=min_p).std()
 
         # Avoid division by zero
         rolling_std = rolling_std.replace(0, np.nan)

@@ -9,18 +9,16 @@ Provides programmatic access to download historical data.
 import logging
 import subprocess
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 def download_data(
-    pairs: List[str],
-    timeframes: List[str] = ["5m", "1h"],
+    pairs: list[str],
+    timeframes: list[str] = ["5m", "1h"],
     exchange: str = "binance",
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     config_path: str = "user_data/config/config_backtest.json",
     data_dir: str = "user_data/data",
 ) -> bool:
@@ -78,11 +76,11 @@ def download_data(
             check=True,
             timeout=300,  # 5 minute timeout to prevent infinite hangs
         )
-        logger.info(f"Download completed successfully")
+        logger.info("Download completed successfully")
         logger.debug(result.stdout)
         return True
     except subprocess.TimeoutExpired:
-        logger.error(f"Download timed out after 300 seconds")
+        logger.error("Download timed out after 300 seconds")
         return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Download failed: {e.stderr}")
@@ -93,8 +91,8 @@ def download_data(
 
 
 def download_data_docker(
-    pairs: List[str],
-    timeframes: List[str] = ["5m", "1h"],
+    pairs: list[str],
+    timeframes: list[str] = ["5m", "1h"],
     timerange: str = "20240101-20240301",
     exchange: str = "binance",
 ) -> bool:
@@ -132,7 +130,7 @@ def download_data_docker(
         logger.info("Download completed successfully")
         return True
     except subprocess.TimeoutExpired:
-        logger.error(f"Docker download timed out after 600 seconds")
+        logger.error("Docker download timed out after 600 seconds")
         return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Download failed: {e.stderr}")

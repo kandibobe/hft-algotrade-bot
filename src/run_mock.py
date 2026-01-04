@@ -16,35 +16,32 @@ DO NOT RUN THIS FILE FOR LIVE TRADING.
 
 import sys
 import time
-from pathlib import Path
+
 from src.utils.logger import log, setup_structured_logging
+
 
 def main():
     """
     Mock entry point.
     """
-    setup_structured_logging(
-        level="INFO",
-        json_output=True,
-        enable_console=True,
-        enable_file=False
-    )
+    setup_structured_logging(level="INFO", json_output=True, enable_console=True, enable_file=False)
 
     log.warning("deprecated_entry_point_warning")
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🛑 THIS IS A MOCK ENTRY POINT")
-    print("="*60)
+    print("=" * 60)
     print("You are trying to run `src/main.py`.")
     print("This file contains mock logic and is NOT connected to the exchange.")
     print("\nTo run the bot, use Freqtrade:")
     print("  freqtrade trade --config config.json --strategy StoicEnsembleStrategyV4")
     print("\nTo train models:")
     print("  python scripts/train_meta_model.py")
-    print("="*60 + "\n")
-    
+    print("=" * 60 + "\n")
+
     # Simulate startup for testing purposes only
     time.sleep(1)
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

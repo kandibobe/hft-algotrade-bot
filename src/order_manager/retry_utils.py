@@ -7,10 +7,8 @@ Uses exponential backoff with jitter to prevent thundering herd.
 """
 
 import logging
-from typing import Type
 
 from tenacity import (
-    RetryCallState,
     before_sleep_log,
     retry,
     retry_if_exception_type,

@@ -23,7 +23,7 @@ Usage:
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Try to import FastAPI
 try:
@@ -163,7 +163,7 @@ class HealthCheck:
         except Exception as e:
             logger.warning(f"Failed to initialize Redis client: {e}")
 
-    async def check_exchange(self) -> Dict[str, Any]:
+    async def check_exchange(self) -> dict[str, Any]:
         """
         Check if exchange API is reachable and responsive.
 
@@ -227,9 +227,9 @@ class HealthCheck:
             return {"status": "unhealthy", "details": "Exchange API timeout (5s)", "healthy": False}
         except Exception as e:
             logger.error(f"Exchange health check failed: {e}")
-            return {"status": "unhealthy", "details": f"Exchange error: {str(e)}", "healthy": False}
+            return {"status": "unhealthy", "details": f"Exchange error: {e!s}", "healthy": False}
 
-    async def check_database(self) -> Dict[str, Any]:
+    async def check_database(self) -> dict[str, Any]:
         """
         Check database connection and basic query execution.
 
@@ -278,9 +278,9 @@ class HealthCheck:
 
         except Exception as e:
             logger.error(f"Database health check failed: {e}")
-            return {"status": "unhealthy", "details": f"Database error: {str(e)}", "healthy": False}
+            return {"status": "unhealthy", "details": f"Database error: {e!s}", "healthy": False}
 
-    async def check_ml_model(self) -> Dict[str, Any]:
+    async def check_ml_model(self) -> dict[str, Any]:
         """
         Check if ML model can make predictions.
 
@@ -366,9 +366,9 @@ class HealthCheck:
 
         except Exception as e:
             logger.error(f"ML model health check failed: {e}")
-            return {"status": "unhealthy", "details": f"ML model error: {str(e)}", "healthy": False}
+            return {"status": "unhealthy", "details": f"ML model error: {e!s}", "healthy": False}
 
-    async def check_circuit_breaker(self) -> Dict[str, Any]:
+    async def check_circuit_breaker(self) -> dict[str, Any]:
         """
         Check circuit breaker status.
 
@@ -416,11 +416,11 @@ class HealthCheck:
             logger.error(f"Circuit breaker health check failed: {e}")
             return {
                 "status": "unhealthy",
-                "details": f"Circuit breaker error: {str(e)}",
+                "details": f"Circuit breaker error: {e!s}",
                 "healthy": False,
             }
 
-    async def check_redis(self) -> Dict[str, Any]:
+    async def check_redis(self) -> dict[str, Any]:
         """
         Check Redis connection.
 
@@ -452,9 +452,9 @@ class HealthCheck:
 
         except Exception as e:
             logger.error(f"Redis health check failed: {e}")
-            return {"status": "unhealthy", "details": f"Redis error: {str(e)}", "healthy": False}
+            return {"status": "unhealthy", "details": f"Redis error: {e!s}", "healthy": False}
 
-    async def check_system_resources(self) -> Dict[str, Any]:
+    async def check_system_resources(self) -> dict[str, Any]:
         """
         Check system resources (CPU, memory, disk).
 
@@ -514,11 +514,11 @@ class HealthCheck:
             logger.error(f"System resources health check failed: {e}")
             return {
                 "status": "unhealthy",
-                "details": f"System check error: {str(e)}",
+                "details": f"System check error: {e!s}",
                 "healthy": False,
             }
 
-    async def run_all_checks(self) -> Dict[str, Any]:
+    async def run_all_checks(self) -> dict[str, Any]:
         """
         Run all health checks concurrently.
 
@@ -545,7 +545,7 @@ class HealthCheck:
             if isinstance(result, Exception):
                 check_results[name] = {
                     "status": "error",
-                    "details": f"Check failed with exception: {str(result)}",
+                    "details": f"Check failed with exception: {result!s}",
                     "healthy": False,
                 }
                 all_healthy = False

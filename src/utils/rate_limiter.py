@@ -25,9 +25,9 @@ import asyncio
 import logging
 import time
 from collections import deque
+from collections.abc import Callable
 from functools import wraps
 from threading import Lock
-from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class TokenBucketLimiter:
         self,
         max_calls: int,
         period: float,
-        burst_limit: Optional[int] = None,
+        burst_limit: int | None = None,
         enable_backoff: bool = True,
     ):
         """
@@ -84,8 +84,7 @@ class TokenBucketLimiter:
         self.last_limit_hit = 0.0
 
         logger.info(
-            f"Rate limiter initialized: {max_calls} calls per {period}s "
-            f"(burst: {self.burst_limit})"
+            f"Rate limiter initialized: {max_calls} calls per {period}s (burst: {self.burst_limit})"
         )
 
     def _cleanup_old_calls(self, now: float) -> None:

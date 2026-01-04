@@ -32,7 +32,7 @@ Usage:
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class ValidationResult:
     passed: bool
     result: CheckResult
     reason: str
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 @dataclass
@@ -101,7 +101,7 @@ class PreTradeChecker:
     - Max 5 open positions
     """
 
-    def __init__(self, config: Optional[PreTradeConfig] = None):
+    def __init__(self, config: PreTradeConfig | None = None):
         """
         Initialize pre-trade checker.
 
@@ -122,10 +122,10 @@ class PreTradeChecker:
         symbol: str,
         side: str,
         quantity: float,
-        price: Optional[float],
+        price: float | None,
         order_type: str = "limit",
         current_balance: float = 0.0,
-        current_price: Optional[float] = None,
+        current_price: float | None = None,
         current_positions: int = 0,
         daily_trade_count: int = 0,
     ) -> ValidationResult:

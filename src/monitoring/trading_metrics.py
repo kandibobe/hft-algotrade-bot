@@ -12,8 +12,7 @@ Prometheus metrics for trading monitoring:
 
 import logging
 import time
-from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Try to import prometheus_client
 try:
@@ -41,7 +40,7 @@ class TradingMetrics:
     Exposes key metrics for monitoring dashboards.
     """
 
-    def __init__(self, namespace: str = "stoic_citadel", registry: Optional[Any] = None):
+    def __init__(self, namespace: str = "stoic_citadel", registry: Any | None = None):
         self.namespace = namespace
 
         if not PROMETHEUS_AVAILABLE:
@@ -239,7 +238,7 @@ class TradingMetrics:
         self._update_timestamp()
 
     def update_pnl(
-        self, daily_pnl: float, daily_pnl_pct: float, trade_pnl: Optional[float] = None
+        self, daily_pnl: float, daily_pnl_pct: float, trade_pnl: float | None = None
     ) -> None:
         """Update PnL metrics."""
         if not self._enabled:
@@ -299,7 +298,7 @@ class TradingMetrics:
         self.total_exposure.set(total_usd)
         self.exposure_pct.set(percentage)
 
-    def set_circuit_breaker_state(self, state: str, trip_reason: Optional[str] = None) -> None:
+    def set_circuit_breaker_state(self, state: str, trip_reason: str | None = None) -> None:
         """Update circuit breaker state."""
         if not self._enabled:
             return
@@ -360,7 +359,7 @@ class TradingMetrics:
 
 
 # Global metrics instance
-_metrics: Optional[TradingMetrics] = None
+_metrics: TradingMetrics | None = None
 
 
 def get_metrics() -> TradingMetrics:

@@ -35,7 +35,7 @@ Usage:
 import logging
 import logging.handlers
 import sys
-from typing import Any, Dict, Optional
+from typing import Any
 
 import structlog
 
@@ -45,7 +45,7 @@ def setup_structured_logging(
     json_output: bool = True,
     enable_console: bool = True,
     enable_file: bool = False,
-    file_path: Optional[str] = None,
+    file_path: str | None = None,
 ) -> None:
     """
     Configure structured logging with structlog.
@@ -65,7 +65,9 @@ def setup_structured_logging(
 
     # Configure standard logging
     logging.basicConfig(
-        format="%(message)s", level=log_level, handlers=[]  # We'll add handlers below
+        format="%(message)s",
+        level=log_level,
+        handlers=[],  # We'll add handlers below
     )
 
     # Create handlers
@@ -80,7 +82,7 @@ def setup_structured_logging(
             file_path,
             maxBytes=10 * 1024 * 1024,  # 10 MB
             backupCount=5,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         handlers.append(file_handler)
 
@@ -125,7 +127,7 @@ def setup_structured_logging(
     )
 
 
-def get_logger(name: Optional[str] = None) -> structlog.stdlib.BoundLogger:
+def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     """
     Get a structured logger instance.
 
@@ -168,10 +170,10 @@ def log_trade(
     side: str,
     quantity: float,
     price: float,
-    pnl: Optional[float] = None,
-    strategy: Optional[str] = None,
-    order_id: Optional[str] = None,
-    exchange: Optional[str] = None,
+    pnl: float | None = None,
+    strategy: str | None = None,
+    order_id: str | None = None,
+    exchange: str | None = None,
     **additional_context: Any,
 ) -> None:
     """
@@ -215,9 +217,9 @@ def log_order(
     order_type: str,
     side: str,
     quantity: float,
-    price: Optional[float] = None,
+    price: float | None = None,
     status: str = "created",
-    reason: Optional[str] = None,
+    reason: str | None = None,
     **additional_context: Any,
 ) -> None:
     """
@@ -257,8 +259,8 @@ def log_strategy_signal(
     strategy: str,
     symbol: str,
     signal: str,
-    confidence: Optional[float] = None,
-    indicators: Optional[Dict[str, Any]] = None,
+    confidence: float | None = None,
+    indicators: dict[str, Any] | None = None,
     **additional_context: Any,
 ) -> None:
     """
@@ -291,8 +293,8 @@ def log_strategy_signal(
 def log_error(
     error_type: str,
     message: str,
-    exception: Optional[Exception] = None,
-    component: Optional[str] = None,
+    exception: Exception | None = None,
+    component: str | None = None,
     **additional_context: Any,
 ) -> None:
     """
@@ -321,7 +323,7 @@ def log_metric(
     name: str,
     value: float,
     metric_type: str = "gauge",
-    tags: Optional[Dict[str, str]] = None,
+    tags: dict[str, str] | None = None,
     **additional_context: Any,
 ) -> None:
     """

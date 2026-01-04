@@ -17,7 +17,6 @@ import hashlib
 import logging
 import pickle
 from functools import lru_cache
-from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -68,9 +67,9 @@ def calculate_sma(series: pd.Series, period: int = 20) -> pd.Series:
 def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     """
     Calculate Relative Strength Index (RSI).
-    
+
     RSI is a momentum oscillator that measures the speed and change of price movements.
-    It oscillates between 0 and 100. Traditionally, RSI is considered overbought when above 70 
+    It oscillates between 0 and 100. Traditionally, RSI is considered overbought when above 70
     and oversold when below 30.
 
     Financial Logic:
@@ -108,11 +107,11 @@ def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 def calculate_macd(
     series: pd.Series, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9
-) -> Dict[str, pd.Series]:
+) -> dict[str, pd.Series]:
     """
     Calculate Moving Average Convergence Divergence (MACD).
-    
-    MACD is a trend-following momentum indicator that shows the relationship between 
+
+    MACD is a trend-following momentum indicator that shows the relationship between
     two moving averages of a security's price.
 
     Financial Logic:
@@ -150,9 +149,9 @@ def calculate_macd(
 def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """
     Calculate Average True Range (ATR).
-    
-    ATR is a market volatility indicator derived from the 14-day moving average of a series of 
-    true range indicators. It does not provide an indication of price direction, just the 
+
+    ATR is a market volatility indicator derived from the 14-day moving average of a series of
+    true range indicators. It does not provide an indication of price direction, just the
     degree of price volatility.
 
     Financial Logic:
@@ -188,7 +187,7 @@ def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int
 
 def calculate_bollinger_bands(
     series: pd.Series, period: int = 20, num_std: float = 2.0
-) -> Dict[str, pd.Series]:
+) -> dict[str, pd.Series]:
     """
     Calculate Bollinger Bands.
 
@@ -227,7 +226,7 @@ def calculate_bollinger_bands(
 
 def calculate_stochastic(
     high: pd.Series, low: pd.Series, close: pd.Series, k_period: int = 14, d_period: int = 3
-) -> Dict[str, pd.Series]:
+) -> dict[str, pd.Series]:
     """
     Calculate Stochastic Oscillator.
 
@@ -307,7 +306,7 @@ def calculate_obv(close: pd.Series, volume: pd.Series) -> pd.Series:
 
 def calculate_adx(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
-) -> Dict[str, pd.Series]:
+) -> dict[str, pd.Series]:
     """
     Calculate Average Directional Index.
     Оптимизированная версия с использованием numpy для внутренних расчетов.
@@ -325,7 +324,7 @@ def calculate_adx(
     h = high.values
     l = low.values
     c = close.values
-    
+
     # True Range
     atr = calculate_atr(high, low, close, period)
     atr_v = atr.values
@@ -341,8 +340,12 @@ def calculate_adx(
     minus_dm_raw = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
 
     # Smooth DM (using pandas EWM for simplicity as it's already vectorized)
-    plus_dm_smooth = pd.Series(plus_dm_raw).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
-    minus_dm_smooth = pd.Series(minus_dm_raw).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    plus_dm_smooth = (
+        pd.Series(plus_dm_raw).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    )
+    minus_dm_smooth = (
+        pd.Series(minus_dm_raw).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    )
 
     # +DI and -DI
     plus_di = 100 * plus_dm_smooth.values / np.where(atr_v == 0, np.nan, atr_v)
@@ -358,7 +361,7 @@ def calculate_adx(
     return {
         "adx": pd.Series(adx.values, index=high.index).fillna(0),
         "plus_di": pd.Series(plus_di, index=high.index).fillna(0),
-        "minus_di": pd.Series(minus_di, index=high.index).fillna(0)
+        "minus_di": pd.Series(minus_di, index=high.index).fillna(0),
     }
 
 

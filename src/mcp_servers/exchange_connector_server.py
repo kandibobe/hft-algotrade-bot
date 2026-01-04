@@ -23,14 +23,13 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Dict
 
 # MCP SDK
 try:
-    from mcp.server.models import InitializationOptions
-    from mcp.server import NotificationOptions, Server
-    from mcp.server.stdio import stdio_server
     from mcp import types
+    from mcp.server import NotificationOptions, Server
+    from mcp.server.models import InitializationOptions
+    from mcp.server.stdio import stdio_server
 except ImportError:
     print("Error: MCP SDK not installed. Run: pip install mcp", file=sys.stderr)
     sys.exit(1)
@@ -50,13 +49,13 @@ executor: AsyncOrderExecutor = None
 async def initialize_executor():
     """Инициализация executor с API ключами из переменных окружения."""
     global executor
-    
+
     if executor is not None:
         return
-    
+
     # Определяем биржу (по умолчанию Binance)
     exchange = os.getenv("EXCHANGE_NAME", "binance")
-    
+
     config = FetcherConfig(
         exchange=exchange,
         api_key=os.getenv(f"{exchange.upper()}_API_KEY"),
@@ -64,7 +63,7 @@ async def initialize_executor():
         rate_limit=True,
         max_retries=3,
     )
-    
+
     executor = AsyncOrderExecutor(config)
     await executor.connect()
     logger.info(f"Exchange executor initialized for {exchange}")
@@ -202,26 +201,26 @@ async def handle_call_tool(
     name: str, arguments: dict | None
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Обработка вызовов инструментов."""
-    
+
     # Инициализация executor при первом вызове
     await initialize_executor()
-    
+
     try:
         if name == "create_limit_order":
             symbol = arguments.get("symbol")
             side = arguments.get("side")
             amount = arguments.get("amount")
             price = arguments.get("price")
-            
+
             logger.info(f"Creating limit order: {side} {amount} {symbol} @ {price}")
-            
+
             order = await executor.create_limit_order(
                 symbol=symbol,
                 side=side,
                 amount=amount,
                 price=price,
             )
-            
+
             result = {
                 "success": True,
                 "order_id": order.get("id"),
@@ -233,22 +232,22 @@ async def handle_call_tool(
                 "status": order.get("status"),
                 "timestamp": order.get("timestamp"),
             }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "create_market_order":
             symbol = arguments.get("symbol")
             side = arguments.get("side")
             amount = arguments.get("amount")
-            
+
             logger.info(f"Creating market order: {side} {amount} {symbol}")
-            
+
             order = await executor.create_market_order(
                 symbol=symbol,
                 side=side,
                 amount=amount,
             )
-            
+
             result = {
                 "success": True,
                 "order_id": order.get("id"),
@@ -261,17 +260,17 @@ async def handle_call_tool(
                 "status": order.get("status"),
                 "timestamp": order.get("timestamp"),
             }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "cancel_order":
             order_id = arguments.get("order_id")
             symbol = arguments.get("symbol")
-            
+
             logger.info(f"Canceling order: {order_id} for {symbol}")
-            
+
             result_data = await executor.cancel_order(order_id, symbol)
-            
+
             result = {
                 "success": True,
                 "order_id": result_data.get("id"),
@@ -279,15 +278,15 @@ async def handle_call_tool(
                 "status": result_data.get("status"),
                 "message": "Order cancelled successfully",
             }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "get_order_status":
             order_id = arguments.get("order_id")
             symbol = arguments.get("symbol")
-            
+
             order = await executor.fetch_order(order_id, symbol)
-            
+
             result = {
                 "success": True,
                 "order_id": order.get("id"),
@@ -302,14 +301,14 @@ async def handle_call_tool(
                 "status": order.get("status"),
                 "timestamp": order.get("timestamp"),
             }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "get_balance":
             currency = arguments.get("currency")
-            
+
             balance_data = await executor.exchange.fetch_balance()
-            
+
             if currency:
                 # Specific currency
                 balance_info = balance_data.get(currency, {})
@@ -331,15 +330,15 @@ async def handle_call_tool(
                                 "used": info.get("used", 0),
                                 "total": info.get("total", 0),
                             }
-                
+
                 result = {
                     "success": True,
                     "balances": balances,
                     "currencies_count": len(balances),
                 }
-            
+
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
         elif name == "get_connection_status":
             # Проверяем подключение через ping или простой запрос
             try:
@@ -357,9 +356,9 @@ async def handle_call_tool(
                     "exchange": executor.config.exchange,
                     "error": str(e),
                 }
-            
+
             return [types.TextContent(type="text", text=json.dumps(status, indent=2))]
-        
+
         else:
             return [
                 types.TextContent(
@@ -367,17 +366,19 @@ async def handle_call_tool(
                     text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}),
                 )
             ]
-    
+
     except Exception as e:
         logger.error(f"Error in {name}: {e}", exc_info=True)
         return [
             types.TextContent(
                 type="text",
-                text=json.dumps({
-                    "success": False,
-                    "error": str(e),
-                    "tool": name,
-                }),
+                text=json.dumps(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "tool": name,
+                    }
+                ),
             )
         ]
 
@@ -385,14 +386,16 @@ async def handle_call_tool(
 async def main():
     """Запуск MCP сервера."""
     logger.info("Starting Exchange Connector MCP Server...")
-    
+
     # Проверка наличия API ключей
     exchange = os.getenv("EXCHANGE_NAME", "binance")
     api_key = os.getenv(f"{exchange.upper()}_API_KEY")
-    
+
     if not api_key:
-        logger.warning(f"WARNING: {exchange.upper()}_API_KEY not set. Some features will be limited.")
-    
+        logger.warning(
+            f"WARNING: {exchange.upper()}_API_KEY not set. Some features will be limited."
+        )
+
     try:
         async with stdio_server() as (read_stream, write_stream):
             await server.run(

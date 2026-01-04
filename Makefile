@@ -73,12 +73,18 @@ help: ## Show this help message
 
 ##@ Environment Setup
 
-setup: ## Setup development environment (virtualenv + dependencies)
+setup: ## Setup development environment (virtualenv + dependencies + ml)
 	@echo "$(CYAN)Setting up development environment...$(NC)"
 	@$(PYTHON) -m venv $(VENV) || echo "$(YELLOW)Virtual environment already exists$(NC)"
 	@echo "$(GREEN)✅ Virtual environment created$(NC)"
 	@$(MAKE) install-dev
+	@$(MAKE) init-ml
 	@echo "$(GREEN)✅ Development environment ready$(NC)"
+
+init-ml: ## Initialize ML system (Feature Store + Dummy Model)
+	@echo "$(CYAN)Initializing ML system...$(NC)"
+	@$(VENV)/Scripts/activate && $(PYTHON) scripts/setup/init_ml_system.py
+	@echo "$(GREEN)✅ ML system initialized$(NC)"
 
 install: ## Install production dependencies
 	@echo "$(CYAN)Installing production dependencies...$(NC)"

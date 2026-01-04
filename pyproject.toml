@@ -40,6 +40,7 @@ dependencies = [
     "scikit-learn>=1.3.0",
     "joblib>=1.3.0",
     "scikit-optimize>=0.9.0",
+    "scipy>=1.10.0",
     "filelock>=3.0.0",
     "river>=0.21.0",
     "feast>=0.30.0",
@@ -110,7 +111,7 @@ dev = [
     "bandit>=1.7.0",
     "pytest-postgresql>=5.0.0",
     "pip-audit>=2.7.0",
-    "semgrep>=1.60.0",
+    # "semgrep>=1.60.0", # Not supported on Windows
     "detect-secrets>=1.4.0",
 ]
 
@@ -231,7 +232,6 @@ mccabe.max-complexity = 10
 # Use Black-compatible formatting
 quote-style = "double"
 indent-style = "space"
-indent-width = 4
 skip-magic-trailing-comma = false
 
 [tool.mypy]

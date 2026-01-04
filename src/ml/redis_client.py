@@ -12,8 +12,7 @@ License: MIT
 import asyncio
 import json
 import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,7 @@ class RedisMLClient:
     # Queue Operations (for request/response pattern)
     # =========================================================================
 
-    async def push_request(self, queue: str, data: Dict[str, Any]) -> bool:
+    async def push_request(self, queue: str, data: dict[str, Any]) -> bool:
         """Push prediction request to queue."""
         try:
             await self.ensure_connected()
@@ -99,7 +98,7 @@ class RedisMLClient:
             logger.error(f"Failed to push request: {e}")
             return False
 
-    async def pop_request(self, queues: List[str], timeout: float = 1.0) -> Optional[tuple]:
+    async def pop_request(self, queues: list[str], timeout: float = 1.0) -> tuple | None:
         """Pop request from queue (blocking)."""
         try:
             await self.ensure_connected()
@@ -112,7 +111,7 @@ class RedisMLClient:
             logger.error(f"Failed to pop request: {e}")
             return None
 
-    async def push_result(self, queue: str, data: Dict[str, Any]) -> bool:
+    async def push_result(self, queue: str, data: dict[str, Any]) -> bool:
         """Push prediction result to queue."""
         try:
             await self.ensure_connected()
@@ -126,14 +125,14 @@ class RedisMLClient:
     # Pub/Sub Operations (for real-time updates)
     # =========================================================================
 
-    async def subscribe(self, channels: List[str]):
+    async def subscribe(self, channels: list[str]):
         """Subscribe to channels for real-time updates."""
         await self.ensure_connected()
         self._pubsub = self._redis.pubsub()
         await self._pubsub.subscribe(*channels)
         logger.info(f"Subscribed to channels: {channels}")
 
-    async def publish(self, channel: str, message: Dict[str, Any]) -> int:
+    async def publish(self, channel: str, message: dict[str, Any]) -> int:
         """Publish message to channel."""
         try:
             await self.ensure_connected()
@@ -155,7 +154,7 @@ class RedisMLClient:
     # Cache Operations
     # =========================================================================
 
-    async def cache_get(self, key: str) -> Optional[Dict[str, Any]]:
+    async def cache_get(self, key: str) -> dict[str, Any] | None:
         """Get cached value."""
         try:
             await self.ensure_connected()
@@ -165,7 +164,7 @@ class RedisMLClient:
             logger.error(f"Cache get failed: {e}")
             return None
 
-    async def cache_set(self, key: str, value: Dict[str, Any], ttl_seconds: int = 60) -> bool:
+    async def cache_set(self, key: str, value: dict[str, Any], ttl_seconds: int = 60) -> bool:
         """Set cached value with TTL."""
         try:
             await self.ensure_connected()
@@ -189,7 +188,7 @@ class RedisMLClient:
     # Health & Stats
     # =========================================================================
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check Redis health."""
         try:
             await self.ensure_connected()

@@ -14,7 +14,6 @@ Models:
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -78,7 +77,7 @@ class SlippageSimulator:
     def __init__(
         self,
         model: SlippageModel = SlippageModel.REALISTIC,
-        config: Optional[SlippageConfig] = None,
+        config: SlippageConfig | None = None,
     ):
         """
         Initialize slippage simulator.
@@ -96,9 +95,9 @@ class SlippageSimulator:
         self,
         order: Order,
         market_price: float,
-        volume_24h: Optional[float] = None,
-        spread_pct: Optional[float] = None,
-    ) -> Tuple[float, float]:
+        volume_24h: float | None = None,
+        spread_pct: float | None = None,
+    ) -> tuple[float, float]:
         """
         Simulate order execution with slippage.
 
@@ -136,7 +135,7 @@ class SlippageSimulator:
 
         return execution_price, commission
 
-    def _simulate_fixed(self, order: Order, market_price: float) -> Tuple[float, float]:
+    def _simulate_fixed(self, order: Order, market_price: float) -> tuple[float, float]:
         """Simulate with fixed slippage percentage."""
         slippage_pct = self.config.fixed_slippage_pct / 100
 
@@ -152,8 +151,8 @@ class SlippageSimulator:
         return execution_price, commission
 
     def _simulate_volume_based(
-        self, order: Order, market_price: float, volume_24h: Optional[float]
-    ) -> Tuple[float, float]:
+        self, order: Order, market_price: float, volume_24h: float | None
+    ) -> tuple[float, float]:
         """Simulate slippage based on order size vs market volume."""
         if volume_24h is None or volume_24h == 0:
             # Fall back to fixed slippage
@@ -181,8 +180,8 @@ class SlippageSimulator:
         return execution_price, commission
 
     def _simulate_spread_based(
-        self, order: Order, market_price: float, spread_pct: Optional[float]
-    ) -> Tuple[float, float]:
+        self, order: Order, market_price: float, spread_pct: float | None
+    ) -> tuple[float, float]:
         """Simulate slippage based on bid-ask spread."""
         spread = spread_pct if spread_pct else self.config.spread_pct
 
@@ -201,9 +200,9 @@ class SlippageSimulator:
         self,
         order: Order,
         market_price: float,
-        volume_24h: Optional[float],
-        spread_pct: Optional[float],
-    ) -> Tuple[float, float]:
+        volume_24h: float | None,
+        spread_pct: float | None,
+    ) -> tuple[float, float]:
         """
         Realistic simulation combining multiple factors.
 
@@ -293,7 +292,7 @@ class SlippageSimulator:
 
     def validate_order_size(
         self, order_value: float, volume_24h: float, max_slippage_pct: float = 0.5
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         Validate if order size is reasonable given market conditions.
 
@@ -324,8 +323,7 @@ class SlippageSimulator:
 
         if estimated_slippage > max_slippage_pct:
             return False, (
-                f"Estimated slippage too high: {estimated_slippage:.2f}% "
-                f"(max: {max_slippage_pct}%)"
+                f"Estimated slippage too high: {estimated_slippage:.2f}% (max: {max_slippage_pct}%)"
             )
 
         return True, None

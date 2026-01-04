@@ -20,9 +20,9 @@ import asyncio
 import logging
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from .data_stream import Exchange, StreamConfig, TickerData, TradeData, WebSocketDataStream
 
@@ -40,7 +40,7 @@ class AggregatedTicker:
     best_ask_exchange: str
     spread: float
     spread_pct: float
-    exchanges: Dict[str, TickerData]
+    exchanges: dict[str, TickerData]
     vwap: float
     total_volume_24h: float
     timestamp: float
@@ -104,20 +104,20 @@ class DataAggregator:
 
     def __init__(self, aggregation_interval: float = 0.1):
         self.aggregation_interval = aggregation_interval
-        self._streams: Dict[Exchange, WebSocketDataStream] = {}
+        self._streams: dict[Exchange, WebSocketDataStream] = {}
         self._running = False
 
         # Data storage
-        self._tickers: Dict[str, Dict[str, TickerData]] = defaultdict(
+        self._tickers: dict[str, dict[str, TickerData]] = defaultdict(
             dict
         )  # symbol -> exchange -> ticker
-        self._trade_volumes: Dict[str, TradeVolume] = {}  # symbol -> volume
-        self._recent_trades: Dict[str, List[TradeData]] = defaultdict(list)  # symbol -> trades
+        self._trade_volumes: dict[str, TradeVolume] = {}  # symbol -> volume
+        self._recent_trades: dict[str, list[TradeData]] = defaultdict(list)  # symbol -> trades
 
         # Callbacks
-        self._aggregated_ticker_handlers: List[Callable] = []
-        self._arbitrage_handlers: List[Callable] = []
-        self._volume_alert_handlers: List[Callable] = []
+        self._aggregated_ticker_handlers: list[Callable] = []
+        self._arbitrage_handlers: list[Callable] = []
+        self._volume_alert_handlers: list[Callable] = []
 
         # Configuration
         self._volume_window_seconds = 60  # 1 minute window
@@ -128,7 +128,7 @@ class DataAggregator:
     # =========================================================================
 
     def add_exchange(
-        self, exchange: Exchange, symbols: List[str], channels: Optional[List[str]] = None
+        self, exchange: Exchange, symbols: list[str], channels: list[str] | None = None
     ):
         """Add exchange stream to aggregator."""
         config = StreamConfig(
@@ -268,7 +268,7 @@ class DataAggregator:
                     await handler(aggregated)
 
     def _aggregate_ticker(
-        self, symbol: str, exchange_tickers: Dict[str, TickerData]
+        self, symbol: str, exchange_tickers: dict[str, TickerData]
     ) -> AggregatedTicker:
         """Aggregate tickers from multiple exchanges."""
         # Find best bid and ask
@@ -322,24 +322,24 @@ class DataAggregator:
     # Query Methods
     # =========================================================================
 
-    def get_aggregated_ticker(self, symbol: str) -> Optional[AggregatedTicker]:
+    def get_aggregated_ticker(self, symbol: str) -> AggregatedTicker | None:
         """Get current aggregated ticker for symbol."""
         symbol = self._normalize_symbol(symbol)
         if symbol not in self._tickers:
             return None
         return self._aggregate_ticker(symbol, self._tickers[symbol])
 
-    def get_trade_volume(self, symbol: str) -> Optional[TradeVolume]:
+    def get_trade_volume(self, symbol: str) -> TradeVolume | None:
         """Get current trade volume statistics."""
         symbol = self._normalize_symbol(symbol)
         return self._trade_volumes.get(symbol)
 
-    def get_recent_trades(self, symbol: str, limit: int = 100) -> List[TradeData]:
+    def get_recent_trades(self, symbol: str, limit: int = 100) -> list[TradeData]:
         """Get recent trades for symbol."""
         symbol = self._normalize_symbol(symbol)
         return self._recent_trades.get(symbol, [])[-limit:]
 
-    def get_all_symbols(self) -> List[str]:
+    def get_all_symbols(self) -> list[str]:
         """Get list of all tracked symbols."""
         return list(self._tickers.keys())
 
@@ -347,7 +347,7 @@ class DataAggregator:
     # Health & Statistics
     # =========================================================================
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get aggregator statistics."""
         stream_stats = {
             exchange.value: stream.get_stats() for exchange, stream in self._streams.items()
@@ -360,7 +360,7 @@ class DataAggregator:
             "volume_windows": len(self._trade_volumes),
         }
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check aggregator health."""
         stream_health = {}
         all_healthy = True

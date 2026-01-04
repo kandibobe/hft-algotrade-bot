@@ -13,11 +13,11 @@ from src.risk.position_sizing import (
 )
 
 __all__ = [
-    "CorrelationManager",
-    "DrawdownMonitor",
     "CircuitBreaker",
     "CircuitBreakerConfig",
     "CircuitState",
+    "CorrelationManager",
+    "DrawdownMonitor",
     "PositionSizer",
     "PositionSizingConfig",
     "create_freqtrade_stake_function",

@@ -40,16 +40,16 @@ def __getattr__(name):
 
 
 __all__ = [
-    "get_ohlcv",
-    "load_csv",
-    "load_feather",
-    "download_data",
-    "validate_ohlcv",
-    "check_data_integrity",
     "AsyncDataFetcher",
     "AsyncOrderExecutor",
     "FetcherConfig",
+    "check_data_integrity",
+    "download_data",
     "fetch_ohlcv_async",
+    "get_ohlcv",
+    "load_csv",
+    "load_feather",
+    "validate_ohlcv",
 ]
 
 __version__ = "2.0.0"

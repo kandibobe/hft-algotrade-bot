@@ -21,11 +21,11 @@ Usage:
 
     # Load from YAML file
     config = load_config("config/strategy_config.yaml")
-    
+
     # Access with dot notation (type-safe!)
     print(config.exchange.name)
     print(config.risk.max_position_pct)
-    
+
     # Validate for live trading
     issues = config.validate_for_live_trading()
     if issues:
@@ -35,32 +35,50 @@ Usage:
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 try:
+    from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
     from pydantic_settings import BaseSettings, SettingsConfigDict
-    from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 except ImportError:
     try:
         # Fallback for Pydantic v2 without pydantic-settings installed
-        from pydantic.v1 import BaseSettings, BaseModel, Field, validator as field_validator, root_validator
-        
+        from pydantic.v1 import (
+            BaseModel,
+            BaseSettings,
+            Field,
+            root_validator,
+        )
+        from pydantic.v1 import (
+            validator as field_validator,
+        )
+
         # Shim for model_validator
         def model_validator(mode):
             def decorator(func):
-                return root_validator(pre=(mode=='before'))(func)
+                return root_validator(pre=(mode == "before"))(func)
+
             return decorator
-            
+
         SettingsConfigDict = None
         ConfigDict = None
     except ImportError:
         # Fallback for Pydantic v1
-        from pydantic import BaseSettings, BaseModel, Field, validator as field_validator, root_validator
-        
+        from pydantic import (
+            BaseModel,
+            BaseSettings,
+            Field,
+            root_validator,
+        )
+        from pydantic import (
+            validator as field_validator,
+        )
+
         # Shim for model_validator
         def model_validator(mode):
             def decorator(func):
-                return root_validator(pre=(mode=='before'))(func)
+                return root_validator(pre=(mode == "before"))(func)
+
             return decorator
 
         SettingsConfigDict = None
@@ -71,18 +89,18 @@ logger = logging.getLogger(__name__)
 
 class ExchangeConfig(BaseModel):
     """Exchange connection configuration with validation."""
-    
+
     name: str = Field(default="binance", description="Exchange name (binance, bybit, okx, etc.)")
     sandbox: bool = Field(
         default=True, description="Use testnet/sandbox mode (CRITICAL for testing!)"
     )
-    api_key: Optional[str] = Field(default=None, description="API key (keep secret!)")
-    api_secret: Optional[str] = Field(default=None, description="API secret (keep secret!)")
+    api_key: str | None = Field(default=None, description="API key (keep secret!)")
+    api_secret: str | None = Field(default=None, description="API secret (keep secret!)")
     rate_limit: bool = Field(default=True, description="Enable rate limiting to avoid bans")
     timeout_ms: int = Field(
         default=30000, ge=1000, le=120000, description="Request timeout in milliseconds"
     )
-    
+
     @field_validator("name")
     @classmethod
     def validate_exchange(cls, v: str) -> str:
@@ -95,7 +113,7 @@ class ExchangeConfig(BaseModel):
 
 class RiskConfig(BaseModel):
     """Risk management configuration with validation."""
-    
+
     max_position_pct: float = Field(
         default=0.10,
         ge=0.01,
@@ -137,18 +155,18 @@ class RiskConfig(BaseModel):
     max_correlation: float = Field(
         default=0.70, ge=0.0, le=1.0, description="Max allowed correlation between assets"
     )
-    
+
     @model_validator(mode="after")
     def validate_risk_reward(cls, values: Any) -> Any:
         """Validate that take profit is greater than stop loss for positive risk/reward."""
         # Handle both Pydantic V1 (dict) and V2 (object) styles
         if isinstance(values, dict):
-            take_profit = values.get('take_profit_pct')
-            stop_loss = values.get('stop_loss_pct')
+            take_profit = values.get("take_profit_pct")
+            stop_loss = values.get("stop_loss_pct")
         else:
-            take_profit = getattr(values, 'take_profit_pct', None)
-            stop_loss = getattr(values, 'stop_loss_pct', None)
-        
+            take_profit = getattr(values, "take_profit_pct", None)
+            stop_loss = getattr(values, "stop_loss_pct", None)
+
         if take_profit is not None and stop_loss is not None:
             if take_profit < stop_loss:
                 logger.warning(
@@ -160,13 +178,13 @@ class RiskConfig(BaseModel):
 
 class StrategyConfig(BaseModel):
     """Strategy-specific configuration from YAML files."""
-    
+
     # General
     name: str = Field(default="StoicEnsembleStrategy", description="Strategy name")
     version: str = Field(default="1.0.0", description="Strategy version")
     timeframe: str = Field(default="5m", description="Trading timeframe")
     startup_candle_count: int = Field(default=200, ge=50, le=1000, description="Startup candles")
-    
+
     # Risk Management
     risk_per_trade: float = Field(default=0.02, ge=0.001, le=0.10, description="Risk per trade")
     max_positions: int = Field(default=3, ge=1, le=20, description="Max concurrent positions")
@@ -174,8 +192,10 @@ class StrategyConfig(BaseModel):
     stoploss: float = Field(default=-0.05, le=0.0, description="Hard stop loss")
     trailing_stop: bool = Field(default=True, description="Enable trailing stop")
     trailing_stop_positive: float = Field(default=0.01, ge=0.0, description="Trailing start")
-    trailing_stop_positive_offset: float = Field(default=0.015, ge=0.0, description="Trailing offset")
-    
+    trailing_stop_positive_offset: float = Field(
+        default=0.015, ge=0.0, description="Trailing offset"
+    )
+
     # Entry Parameters
     min_adx: float = Field(default=20.0, ge=0.0, le=100.0, description="Minimum ADX")
     rsi_oversold: float = Field(default=30.0, ge=0.0, le=100.0, description="RSI oversold")
@@ -185,34 +205,38 @@ class StrategyConfig(BaseModel):
     min_volume_ratio: float = Field(default=0.8, ge=0.0, le=5.0, description="Min volume ratio")
     min_bb_width: float = Field(default=0.02, ge=0.0, description="Min Bollinger Band width")
     max_bb_width: float = Field(default=0.20, ge=0.0, description="Max Bollinger Band width")
-    
+
     # Exit Parameters
     exit_rsi_overbought: float = Field(default=75.0, ge=0.0, le=100.0, description="Exit RSI")
     exit_stoch_overbought: float = Field(default=80.0, ge=0.0, le=100.0, description="Exit Stoch")
-    
+
     # ROI Table
     roi_0: float = Field(default=0.15, ge=0.0, description="Immediate ROI")
     roi_30: float = Field(default=0.08, ge=0.0, description="30-minute ROI")
     roi_60: float = Field(default=0.05, ge=0.0, description="60-minute ROI")
     roi_120: float = Field(default=0.03, ge=0.0, description="120-minute ROI")
-    
+
     # Regime Detection
     regime_aware: bool = Field(default=True, description="Enable regime detection")
     regime_adx_threshold: float = Field(default=25.0, ge=0.0, le=100.0, description="Regime ADX")
-    regime_aggressive_score: float = Field(default=70.0, ge=0.0, le=100.0, description="Aggressive score")
-    regime_defensive_score: float = Field(default=40.0, ge=0.0, le=100.0, description="Defensive score")
-    
+    regime_aggressive_score: float = Field(
+        default=70.0, ge=0.0, le=100.0, description="Aggressive score"
+    )
+    regime_defensive_score: float = Field(
+        default=40.0, ge=0.0, le=100.0, description="Defensive score"
+    )
+
     # Fees & Slippage
     fee: float = Field(default=0.001, ge=0.0, le=0.01, description="Trading fee")
     slippage_entry: float = Field(default=0.0005, ge=0.0, le=0.01, description="Entry slippage")
     slippage_exit: float = Field(default=0.0005, ge=0.0, le=0.01, description="Exit slippage")
-    
+
     # Protections
     protection_stoploss_guard: bool = Field(default=True, description="Enable stop loss guard")
     protection_stoploss_lookback: int = Field(default=60, ge=1, description="Stop loss lookback")
     protection_stoploss_limit: int = Field(default=3, ge=1, description="Stop loss limit")
     protection_cooldown: int = Field(default=24, ge=1, description="Cooldown period")
-    
+
     @field_validator("timeframe")
     @classmethod
     def validate_timeframe(cls, v: str) -> str:
@@ -225,7 +249,7 @@ class StrategyConfig(BaseModel):
 
 class MLConfig(BaseModel):
     """Machine Learning configuration."""
-    
+
     model_type: Literal["lightgbm", "xgboost", "random_forest", "catboost"] = Field(
         default="lightgbm", description="ML model type"
     )
@@ -250,7 +274,7 @@ class MLConfig(BaseModel):
 
 class TrainingConfig(BaseModel):
     """Training pipeline configuration."""
-    
+
     target_variable: str = Field(default="target", description="Name of target variable")
     model_type: Literal["lightgbm", "xgboost", "random_forest", "catboost"] = Field(
         default="lightgbm", description="ML model type"
@@ -261,24 +285,22 @@ class TrainingConfig(BaseModel):
     validation_split: float = Field(
         default=0.2, ge=0.1, le=0.5, description="Validation data split ratio"
     )
-    feature_set_version: str = Field(
-        default="v1", description="Feature set version for tracking"
-    )
+    feature_set_version: str = Field(default="v1", description="Feature set version for tracking")
     n_jobs: int = Field(default=-1, description="Number of parallel jobs (-1 for all cores)")
     early_stopping_rounds: int = Field(default=10, description="Early stopping rounds")
 
 
 class TelegramConfig(BaseModel):
     """Telegram bot configuration."""
-    
-    token: Optional[str] = Field(default=None, description="Telegram Bot Token")
-    chat_id: Optional[str] = Field(default=None, description="Telegram Chat ID")
+
+    token: str | None = Field(default=None, description="Telegram Bot Token")
+    chat_id: str | None = Field(default=None, description="Telegram Chat ID")
     enabled: bool = Field(default=False, description="Enable Telegram notifications")
 
 
 class TradingConfig(BaseSettings):
     """Main trading configuration with environment variable support."""
-    
+
     if SettingsConfigDict:
         model_config = SettingsConfigDict(
             env_file=".env",
@@ -287,17 +309,18 @@ class TradingConfig(BaseSettings):
             case_sensitive=True,
         )
     else:
+
         class Config:
             env_file = ".env"
             env_file_encoding = "utf-8"
             extra = "ignore"
             case_sensitive = True
-    
+
     # Basic settings
     dry_run: bool = Field(
         default=True, description="CRITICAL: Set to False only for live trading with real money!"
     )
-    pairs: List[str] = Field(default=["BTC/USDT"], min_length=1, description="Trading pairs")
+    pairs: list[str] = Field(default=["BTC/USDT"], min_length=1, description="Trading pairs")
     timeframe: str = Field(default="1h", description="Main trading timeframe")
     stake_currency: str = Field(default="USDT", description="Quote currency for stake")
     stake_amount: float = Field(default=100.0, ge=1.0, description="Stake amount per trade")
@@ -307,15 +330,15 @@ class TradingConfig(BaseSettings):
     leverage: float = Field(
         default=1.0, ge=1.0, le=20.0, description="Leverage (1.0 = no leverage)"
     )
-    
+
     # Sub-configs
     exchange: ExchangeConfig = Field(default_factory=ExchangeConfig)
     risk: RiskConfig = Field(default_factory=RiskConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
     training: TrainingConfig = Field(default_factory=TrainingConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
-    strategy: Optional[StrategyConfig] = Field(default=None, description="Strategy configuration")
-    
+    strategy: StrategyConfig | None = Field(default=None, description="Strategy configuration")
+
     # Strategy settings
     strategy_name: str = Field(default="StoicCitadel", description="Strategy class name")
     use_regime_filter: bool = Field(
@@ -324,24 +347,24 @@ class TradingConfig(BaseSettings):
     use_smart_orders: bool = Field(
         default=True, description="Use smart limit orders for fee optimization"
     )
-    
+
     # Environment variables for API credentials
-    api_key: Optional[str] = Field(default=None, validation_alias="BINANCE_API_KEY")
-    api_secret: Optional[str] = Field(default=None, validation_alias="BINANCE_API_SECRET")
-    
+    api_key: str | None = Field(default=None, validation_alias="BINANCE_API_KEY")
+    api_secret: str | None = Field(default=None, validation_alias="BINANCE_API_SECRET")
+
     # Telegram environment variables
-    telegram_token: Optional[str] = Field(default=None, validation_alias="TELEGRAM_TOKEN")
-    telegram_chat_id: Optional[str] = Field(default=None, validation_alias="TELEGRAM_CHAT_ID")
-    
+    telegram_token: str | None = Field(default=None, validation_alias="TELEGRAM_TOKEN")
+    telegram_chat_id: str | None = Field(default=None, validation_alias="TELEGRAM_CHAT_ID")
+
     @field_validator("pairs")
     @classmethod
-    def validate_pairs(cls, v: List[str]) -> List[str]:
+    def validate_pairs(cls, v: list[str]) -> list[str]:
         """Validate trading pair format."""
         for pair in v:
             if "/" not in pair:
                 raise ValueError(f"Invalid pair format: {pair}. Expected 'BASE/QUOTE'")
         return v
-    
+
     @field_validator("timeframe")
     @classmethod
     def validate_timeframe(cls, v: str) -> str:
@@ -350,7 +373,7 @@ class TradingConfig(BaseSettings):
         if v not in valid:
             raise ValueError(f"Invalid timeframe: {v}. Valid: {valid}")
         return v
-    
+
     @field_validator("leverage")
     @classmethod
     def validate_leverage(cls, v: float) -> float:
@@ -358,25 +381,25 @@ class TradingConfig(BaseSettings):
         if v > 5.0:
             logger.warning(f"Leverage {v}x is high! Consider lower leverage for safety.")
         return v
-    
+
     @model_validator(mode="after")
     def validate_live_trading(cls, values: Any) -> Any:
         """Validate configuration for live trading safety."""
         # Handle both Pydantic V1 (dict) and V2 (object) styles
         if isinstance(values, dict):
-            dry_run = values.get('dry_run')
-            exchange = values.get('exchange')
-            leverage = values.get('leverage')
-            telegram = values.get('telegram')
-            telegram_token = values.get('telegram_token')
-            telegram_chat_id = values.get('telegram_chat_id')
+            dry_run = values.get("dry_run")
+            exchange = values.get("exchange")
+            leverage = values.get("leverage")
+            telegram = values.get("telegram")
+            telegram_token = values.get("telegram_token")
+            telegram_chat_id = values.get("telegram_chat_id")
         else:
-            dry_run = getattr(values, 'dry_run', None)
-            exchange = getattr(values, 'exchange', None)
-            leverage = getattr(values, 'leverage', None)
-            telegram = getattr(values, 'telegram', None)
-            telegram_token = getattr(values, 'telegram_token', None)
-            telegram_chat_id = getattr(values, 'telegram_chat_id', None)
+            dry_run = getattr(values, "dry_run", None)
+            exchange = getattr(values, "exchange", None)
+            leverage = getattr(values, "leverage", None)
+            telegram = getattr(values, "telegram", None)
+            telegram_token = getattr(values, "telegram_token", None)
+            telegram_chat_id = getattr(values, "telegram_chat_id", None)
 
         # Sync environment variables to telegram config if provided
         if telegram:
@@ -384,7 +407,7 @@ class TradingConfig(BaseSettings):
                 telegram.token = telegram_token
             if telegram_chat_id and not telegram.chat_id:
                 telegram.chat_id = telegram_chat_id
-            
+
             # Auto-enable if token and chat_id are present
             if telegram.token and telegram.chat_id and not telegram.enabled:
                 telegram.enabled = True
@@ -399,26 +422,26 @@ class TradingConfig(BaseSettings):
                     f"LIVE TRADING with {leverage}x leverage! Make sure you understand the risks."
                 )
         return values
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return self.model_dump()
-    
-    def to_json(self, path: Optional[str] = None) -> str:
+
+    def to_json(self, path: str | None = None) -> str:
         """Export to JSON."""
         json_str = self.model_dump_json(indent=2)
         if path:
             Path(path).write_text(json_str)
             logger.info(f"Config saved to {path}")
         return json_str
-    
+
     @classmethod
     def from_json(cls, path: str) -> "TradingConfig":
         """Load from JSON file."""
         with open(path) as f:
             data = json.load(f)
         return cls(**data)
-    
+
     @classmethod
     def from_yaml(cls, path: str) -> "TradingConfig":
         """Load from YAML file."""
@@ -426,73 +449,85 @@ class TradingConfig(BaseSettings):
             import yaml
         except ImportError:
             raise ImportError("PyYAML required. Run: pip install pyyaml")
-        
+
         with open(path) as f:
             data = yaml.safe_load(f)
         return cls(**data)
-    
-    def validate_for_live_trading(self) -> List[str]:
+
+    def validate_for_live_trading(self) -> list[str]:
         """
         Validate config is safe for live trading.
-        
+
         Returns list of warnings/issues found.
         """
         issues = []
-        
+
         if self.dry_run:
             issues.append("dry_run is True - this is paper trading mode")
-        
+
         if self.exchange.sandbox:
             issues.append("sandbox mode enabled - trading on testnet")
-        
+
         if not self.exchange.api_key:
             issues.append("No API key configured")
-        
+
         if not self.exchange.api_secret:
             issues.append("No API secret configured")
-        
+
         # Stricter validation for live trading
         if self.leverage > 5.0:
             issues.append(f"High leverage ({self.leverage}x) - consider reducing")
         elif self.leverage > 3.0 and not self.dry_run:
             issues.append(f"Moderate leverage ({self.leverage}x) - ensure risk management")
-        
+
         # Position size limits for live trading
         if self.risk.max_position_pct > 0.25 and not self.dry_run:
-            issues.append(f"Large position size ({self.risk.max_position_pct:.0%}) - max 25% recommended for live trading")
+            issues.append(
+                f"Large position size ({self.risk.max_position_pct:.0%}) - max 25% recommended for live trading"
+            )
         elif self.risk.max_position_pct > 0.50:
-            issues.append(f"Very large position size ({self.risk.max_position_pct:.0%}) - max 50% allowed")
-        
+            issues.append(
+                f"Very large position size ({self.risk.max_position_pct:.0%}) - max 50% allowed"
+            )
+
         # Risk limits
         if self.risk.max_drawdown_pct > 0.30:
-            issues.append(f"High max drawdown ({self.risk.max_drawdown_pct:.0%}) - max 30% recommended")
+            issues.append(
+                f"High max drawdown ({self.risk.max_drawdown_pct:.0%}) - max 30% recommended"
+            )
         if self.risk.max_daily_loss_pct > 0.10:
-            issues.append(f"High daily loss limit ({self.risk.max_daily_loss_pct:.0%}) - max 10% recommended")
-        
+            issues.append(
+                f"High daily loss limit ({self.risk.max_daily_loss_pct:.0%}) - max 10% recommended"
+            )
+
         # Stop loss validation
         if self.risk.stop_loss_pct > 0.10:
             issues.append(f"Large stop loss ({self.risk.stop_loss_pct:.0%}) - max 10% recommended")
-        
+
         # Risk/reward ratio validation
         if self.risk.take_profit_pct / self.risk.stop_loss_pct < 1.5:
-            issues.append(f"Low risk/reward ratio ({self.risk.take_profit_pct/self.risk.stop_loss_pct:.1f}:1) - aim for at least 1.5:1")
-        
+            issues.append(
+                f"Low risk/reward ratio ({self.risk.take_profit_pct / self.risk.stop_loss_pct:.1f}:1) - aim for at least 1.5:1"
+            )
+
         # Strategy validation
         if not self.strategy:
             issues.append("No strategy configuration loaded")
         elif self.strategy.risk_per_trade > 0.05:
-            issues.append(f"High strategy risk per trade ({self.strategy.risk_per_trade:.0%}) - max 5% recommended")
-        
+            issues.append(
+                f"High strategy risk per trade ({self.strategy.risk_per_trade:.0%}) - max 5% recommended"
+            )
+
         return issues
 
 
-def load_config(config_path: Optional[str] = None) -> TradingConfig:
+def load_config(config_path: str | None = None) -> TradingConfig:
     """
     Load configuration from file or environment.
-    
+
     Args:
         config_path: Path to YAML or JSON config file (optional)
-        
+
     Returns:
         TradingConfig instance
     """

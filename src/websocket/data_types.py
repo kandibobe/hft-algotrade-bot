@@ -3,9 +3,9 @@
 Data types and interfaces for WebSocket data streaming.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -15,9 +15,9 @@ class IWebSocketClient(Protocol):
     async def connect(
         self,
         uri: str,
-        ping_interval: Optional[float] = None,
-        ping_timeout: Optional[float] = None,
-        close_timeout: Optional[float] = None,
+        ping_interval: float | None = None,
+        ping_timeout: float | None = None,
+        close_timeout: float | None = None,
     ):
         """Connect to WebSocket server."""
         ...
@@ -56,7 +56,7 @@ class TickerData:
     change_24h: float
     timestamp: float
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "exchange": self.exchange,
             "symbol": self.symbol,
@@ -82,7 +82,7 @@ class TradeData:
     side: str  # 'buy' or 'sell'
     timestamp: float
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "exchange": self.exchange,
             "symbol": self.symbol,

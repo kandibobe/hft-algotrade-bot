@@ -9,9 +9,6 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional
-
-from src.order_manager.order_types import Order, OrderSide, OrderStatus
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +40,8 @@ class Position:
 
     # Current state
     current_price: float = 0.0
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
+    stop_loss: float | None = None
+    take_profit: float | None = None
 
     # PnL tracking
     unrealized_pnl: float = 0.0
@@ -57,21 +54,21 @@ class Position:
     total_commission: float = 0.0
 
     # Metadata
-    strategy_name: Optional[str] = None
-    entry_reason: Optional[str] = None
-    tags: Dict = field(default_factory=dict)
+    strategy_name: str | None = None
+    entry_reason: str | None = None
+    tags: dict = field(default_factory=dict)
 
     # Related orders
-    entry_order_id: Optional[str] = None
-    exit_order_id: Optional[str] = None
-    stop_loss_order_id: Optional[str] = None
-    take_profit_order_id: Optional[str] = None
+    entry_order_id: str | None = None
+    exit_order_id: str | None = None
+    stop_loss_order_id: str | None = None
+    take_profit_order_id: str | None = None
 
     # Lifecycle
     is_open: bool = True
-    exit_price: Optional[float] = None
-    exit_time: Optional[datetime] = None
-    exit_reason: Optional[str] = None
+    exit_price: float | None = None
+    exit_time: datetime | None = None
+    exit_reason: str | None = None
 
     def update_price(self, current_price: float):
         """
@@ -162,7 +159,7 @@ class Position:
         else:
             return self.current_price <= self.take_profit
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert position to dictionary."""
         return {
             "position_id": self.position_id,
@@ -206,9 +203,9 @@ class PositionManager:
         self.max_positions = max_positions
         self.max_position_per_symbol = max_position_per_symbol
 
-        self.positions: Dict[str, Position] = {}  # position_id -> Position
-        self.symbol_positions: Dict[str, List[str]] = {}  # symbol -> [position_ids]
-        self.closed_positions: List[Position] = []
+        self.positions: dict[str, Position] = {}  # position_id -> Position
+        self.symbol_positions: dict[str, list[str]] = {}  # symbol -> [position_ids]
+        self.closed_positions: list[Position] = []
 
     def open_position(
         self,
@@ -216,13 +213,13 @@ class PositionManager:
         side: PositionSide,
         entry_price: float,
         quantity: float,
-        stop_loss: Optional[float] = None,
-        take_profit: Optional[float] = None,
-        strategy_name: Optional[str] = None,
-        entry_reason: Optional[str] = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
+        strategy_name: str | None = None,
+        entry_reason: str | None = None,
         entry_commission: float = 0.0,
-        entry_order_id: Optional[str] = None,
-    ) -> Optional[Position]:
+        entry_order_id: str | None = None,
+    ) -> Position | None:
         """
         Open a new position.
 
@@ -287,7 +284,7 @@ class PositionManager:
         exit_price: float,
         exit_commission: float = 0.0,
         reason: str = "manual",
-        exit_order_id: Optional[str] = None,
+        exit_order_id: str | None = None,
     ) -> bool:
         """
         Close an existing position.
@@ -322,7 +319,7 @@ class PositionManager:
 
         return True
 
-    def update_prices(self, prices: Dict[str, float]):
+    def update_prices(self, prices: dict[str, float]):
         """
         Update current prices for all positions.
 
@@ -333,7 +330,7 @@ class PositionManager:
             if position.symbol in prices:
                 position.update_price(prices[position.symbol])
 
-    def check_stop_loss_take_profit(self) -> List[Position]:
+    def check_stop_loss_take_profit(self) -> list[Position]:
         """
         Check all positions for stop-loss or take-profit triggers.
 
@@ -379,16 +376,16 @@ class PositionManager:
 
         return True
 
-    def get_position(self, position_id: str) -> Optional[Position]:
+    def get_position(self, position_id: str) -> Position | None:
         """Get position by ID."""
         return self.positions.get(position_id)
 
-    def get_positions_by_symbol(self, symbol: str) -> List[Position]:
+    def get_positions_by_symbol(self, symbol: str) -> list[Position]:
         """Get all open positions for a symbol."""
         position_ids = self.symbol_positions.get(symbol, [])
         return [self.positions[pid] for pid in position_ids if pid in self.positions]
 
-    def get_all_positions(self) -> List[Position]:
+    def get_all_positions(self) -> list[Position]:
         """Get all open positions."""
         return list(self.positions.values())
 
@@ -400,7 +397,7 @@ class PositionManager:
         """Get total realized PnL from closed positions."""
         return sum(pos.realized_pnl for pos in self.closed_positions)
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """Get position statistics."""
         open_positions = list(self.positions.values())
 

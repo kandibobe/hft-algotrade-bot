@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +21,10 @@ class Experiment:
     name: str
     description: str
     created_at: datetime = field(default_factory=datetime.now)
-    config: Dict[str, Any] = field(default_factory=dict)
-    metrics: Dict[str, float] = field(default_factory=dict)
-    tags: List[str] = field(default_factory=list)
-    run_id: Optional[str] = None
+    config: dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
+    run_id: str | None = None
 
 
 class ExperimentTracker:
@@ -49,7 +49,7 @@ class ExperimentTracker:
     def __init__(
         self,
         project: str = "stoic-citadel-ml",
-        entity: Optional[str] = None,
+        entity: str | None = None,
         backend: str = "wandb",  # "wandb" or "mlflow"
     ):
         """
@@ -64,7 +64,7 @@ class ExperimentTracker:
         self.entity = entity
         self.backend = backend
         self.current_run = None
-        self.experiments: List[Experiment] = []
+        self.experiments: list[Experiment] = []
 
         # Initialize backend
         if backend == "wandb":
@@ -95,8 +95,8 @@ class ExperimentTracker:
         self,
         name: str,
         description: str = "",
-        config: Optional[Dict] = None,
-        tags: Optional[List[str]] = None,
+        config: dict | None = None,
+        tags: list[str] | None = None,
     ):
         """
         Start a new experiment run.
@@ -142,7 +142,7 @@ class ExperimentTracker:
 
         return experiment
 
-    def log_config(self, config: Dict[str, Any]):
+    def log_config(self, config: dict[str, Any]):
         """
         Log configuration/hyperparameters.
 
@@ -161,7 +161,7 @@ class ExperimentTracker:
 
         logger.debug(f"Logged config: {config}")
 
-    def log_metrics(self, metrics: Dict[str, float], step: Optional[int] = None):
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None):
         """
         Log metrics.
 
@@ -186,7 +186,7 @@ class ExperimentTracker:
 
         logger.debug(f"Logged metrics: {metrics}")
 
-    def log_backtest_results(self, backtest_results: Dict[str, Any]):
+    def log_backtest_results(self, backtest_results: dict[str, Any]):
         """
         Log backtest results.
 
@@ -236,7 +236,7 @@ class ExperimentTracker:
 
         logger.info(f"Logged model: {model_path}")
 
-    def log_feature_importance(self, feature_importance: Dict[str, float]):
+    def log_feature_importance(self, feature_importance: dict[str, float]):
         """
         Log feature importance.
 
@@ -256,7 +256,7 @@ class ExperimentTracker:
         logger.info(f"Logged feature importance for {len(feature_importance)} features")
 
     def log_confusion_matrix(
-        self, y_true: List, y_pred: List, class_names: Optional[List[str]] = None
+        self, y_true: list, y_pred: list, class_names: list[str] | None = None
     ):
         """
         Log confusion matrix.
@@ -277,7 +277,7 @@ class ExperimentTracker:
 
         logger.info("Logged confusion matrix")
 
-    def log_roc_curve(self, y_true: List, y_probas: List, class_names: Optional[List[str]] = None):
+    def log_roc_curve(self, y_true: list, y_probas: list, class_names: list[str] | None = None):
         """
         Log ROC curve.
 
@@ -316,7 +316,7 @@ class ExperimentTracker:
         logger.info(f"Finished run: {'success' if success else 'failed'}")
         self.current_run = None
 
-    def get_experiment_summary(self, experiment_name: str) -> Optional[Experiment]:
+    def get_experiment_summary(self, experiment_name: str) -> Experiment | None:
         """
         Get experiment summary by name.
 
@@ -331,7 +331,7 @@ class ExperimentTracker:
                 return exp
         return None
 
-    def compare_experiments(self, experiment_names: List[str]) -> Dict:
+    def compare_experiments(self, experiment_names: list[str]) -> dict:
         """
         Compare multiple experiments.
 
@@ -364,7 +364,7 @@ class ExperimentTracker:
 
 
 # Helper function for easy tracking
-def track_training(project: str = "stoic-citadel-ml", name: str = None, config: Dict = None):
+def track_training(project: str = "stoic-citadel-ml", name: str = None, config: dict = None):
     """
     Decorator to track training function.
 

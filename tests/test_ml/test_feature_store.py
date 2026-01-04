@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import numpy as np
 
+from unittest.mock import MagicMock, patch
 from src.ml.feature_store import (
     TradingFeatureStore,
     MockFeatureStore,
@@ -134,85 +135,78 @@ class TestMockFeatureStore:
 
 
 class TestRedisFeatureStore:
-    """Test RedisFeatureStore (requires Redis or mocks)."""
+    """Test RedisFeatureStore (using mocks)."""
     
-    def test_initialization(self):
+    @patch('src.ml.feature_store.redis.Redis')
+    def test_initialization(self, mock_redis):
         """Test that RedisFeatureStore initializes correctly."""
-        # Test with default parameters
-        try:
-            store = RedisFeatureStore()
-            # Should have Redis connection
-            assert hasattr(store, 'redis')
-            assert hasattr(store, 'pickle')
-            assert store.ttl == 3600  # 1 hour in seconds
-        except Exception as e:
-            # If Redis is not available, skip the test
-            pytest.skip(f"Redis not available: {e}")
+        store = RedisFeatureStore()
+        # Should have Redis connection
+        assert hasattr(store, 'redis')
+        assert hasattr(store, 'pickle')
+        assert store.ttl == 3600  # 1 hour in seconds
     
-    def test_get_features_method(self):
+    @patch('src.ml.feature_store.redis.Redis')
+    def test_get_features_method(self, mock_redis):
         """Test the get_features method (simple key-value interface)."""
-        try:
-            store = RedisFeatureStore()
-            store.initialize()
-            
-            symbol = "BTC/USDT"
-            timestamp = "2024-01-01 12:00:00"
-            
-            # Test getting non-existent features
-            features = store.get_features(symbol, timestamp)
-            assert features is None
-            
-            # Test setting and getting features
-            test_features = {"open": 50000.0, "close": 50500.0, "volume": 1000.0}
-            store.set_features(symbol, timestamp, test_features)
-            
-            # Note: In a real test, we would get the features back
-            # But since Redis might not be available, we'll just verify the method exists
-            assert hasattr(store, 'get_features')
-            assert hasattr(store, 'set_features')
-            
-        except Exception as e:
-            pytest.skip(f"Redis not available: {e}")
+        store = RedisFeatureStore()
+        # Mock redis get/set
+        mock_redis.return_value.get.return_value = None
+        store.initialize()
+        
+        symbol = "BTC/USDT"
+        timestamp = "2024-01-01 12:00:00"
+        
+        # Test getting non-existent features
+        features = store.get_features(symbol, timestamp)
+        assert features is None
+        
+        # Test setting features
+        test_features = {"open": 50000.0, "close": 50500.0, "volume": 1000.0}
+        store.set_features(symbol, timestamp, test_features)
+        
+        # Verify redis set was called
+        mock_redis.return_value.set.assert_called()
     
-    def test_get_online_features_with_redis(self):
+    @patch('src.ml.feature_store.redis.Redis')
+    def test_get_online_features_with_redis(self, mock_redis):
         """Test get_online_features using Redis cache."""
-        try:
-            store = RedisFeatureStore(enable_caching=True)
-            store.initialize()
-            store.register_features()
-            
-            symbol = "BTC/USDT"
-            timestamp = datetime.now()
-            
-            # Get features (should generate mock features and cache in Redis)
-            features = store.get_online_features(symbol, timestamp)
-            
-            assert isinstance(features, pd.DataFrame)
-            assert len(features) > 0
-            assert 'symbol_id' in features.columns
-            assert 'timestamp' in features.columns
-            
-            # Verify Redis-specific methods exist
-            assert hasattr(store, 'clear_redis_cache')
-            
-        except Exception as e:
-            pytest.skip(f"Redis not available: {e}")
+        store = RedisFeatureStore(enable_caching=True)
+        store.initialize()
+        store.register_features()
+        
+        symbol = "BTC/USDT"
+        timestamp = datetime.now()
+        
+        # Get features (should generate mock features and try to cache)
+        features = store.get_online_features(symbol, timestamp)
+        
+        assert isinstance(features, pd.DataFrame)
+        assert len(features) > 0
+        assert 'symbol_id' in features.columns
+        assert 'timestamp' in features.columns
+        
+        # Verify Redis-specific methods exist
+        assert hasattr(store, 'clear_redis_cache')
     
-    def test_health_check(self):
+    @patch('src.ml.feature_store.redis.Redis')
+    def test_health_check(self, mock_redis):
         """Test Redis feature store health check."""
-        try:
-            store = RedisFeatureStore()
-            store.initialize()
-            
-            health = store.health_check()
-            
-            # Should have Redis-specific health info
-            assert 'redis_connected' in health
-            assert 'redis_version' in health or 'error' in health
-            assert 'cache_size' in health
-            
-        except Exception as e:
-            pytest.skip(f"Redis not available: {e}")
+        store = RedisFeatureStore()
+        
+        # Mock ping
+        mock_redis.return_value.ping.return_value = True
+        mock_redis.return_value.info.return_value = {'redis_version': '6.0.0', 'used_memory_human': '1M'}
+        mock_redis.return_value.dbsize.return_value = 100
+        
+        store.initialize()
+        
+        health = store.health_check()
+        
+        # Should have Redis-specific health info
+        assert health['redis_connected'] == True
+        assert 'redis_version' in health
+        assert health['cache_size'] == 100
 
 
 class TestTradingFeatureStore:

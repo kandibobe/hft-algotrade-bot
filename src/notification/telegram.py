@@ -1,15 +1,18 @@
 import logging
+
 import requests
-from typing import Optional
+
 from src.config.unified_config import load_config
 
 logger = logging.getLogger(__name__)
+
 
 class TelegramBot:
     """
     Telegram bot for sending notifications about trades and errors.
     """
-    def __init__(self, token: Optional[str] = None, chat_id: Optional[str] = None):
+
+    def __init__(self, token: str | None = None, chat_id: str | None = None):
         config = load_config()
         self.token = token or config.telegram.token
         self.chat_id = chat_id or config.telegram.chat_id
@@ -27,11 +30,7 @@ class TelegramBot:
             return
 
         url = f"https://api.telegram.org/bot{self.token}/sendMessage"
-        payload = {
-            "chat_id": self.chat_id,
-            "text": message,
-            "parse_mode": "HTML"
-        }
+        payload = {"chat_id": self.chat_id, "text": message, "parse_mode": "HTML"}
 
         try:
             response = requests.post(url, json=payload, timeout=10)
