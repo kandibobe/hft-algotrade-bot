@@ -72,6 +72,11 @@ COPY manage.py /freqtrade/
 # Create necessary directories
 RUN mkdir -p /freqtrade/user_data/{logs,data,strategies,config,backtest_results}
 
+# Copy production config
+COPY user_data/config/config_production.json /freqtrade/user_data/config/config_production.json
+
+RUN ls -la /freqtrade/user_data/config
+
 # Set environment variables
 # Add /freqtrade to PYTHONPATH so we can import src.xxx and run manage.py
 ENV PYTHONPATH=/freqtrade:${PYTHONPATH}

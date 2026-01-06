@@ -1,26 +1,23 @@
-version: '3'
 services:
   freqtrade:
     # Используем сборку из текущей папки (наш Dockerfile)
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: deploy/docker/Dockerfile
     image: stoic_citadel:latest
     container_name: stoic_freqtrade
     restart: unless-stopped
     volumes:
-      # Монтируем конфиги и данные
-      - ./user_data:/freqtrade/user_data
       # КРИТИЧНО: Монтируем исходный код src внутрь контейнера
-      - ./src:/freqtrade/user_data/src
+      - ../src:/freqtrade/user_data/src
     ports:
       - "127.0.0.1:8080:8080"
     # Исправлена команда: config.json -> config_production.json
     command: >
-      freqtrade trade
-      --logfile /freqtrade/user_data/logs/freqtrade.log
-      --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
-      --config /freqtrade/user_data/config/config_production.json
+      freqtrade trade 
+      --logfile /freqtrade/user_data/logs/freqtrade.log 
+      --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite 
+      --config config/config_production.json 
       --strategy StoicEnsembleStrategyV5
     deploy:
       resources:
@@ -70,9 +67,9 @@ services:
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/setup_postgres.sql:/docker-entrypoint-initdb.d/setup.sql
+      - ../deploy/scripts/init-db/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+      - "127.0.0.1:5434:5432"
     networks:
       - stoic_network
     healthcheck:

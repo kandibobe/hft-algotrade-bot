@@ -188,14 +188,14 @@ class OnlineLearner:
 
         logger.info(f"Online Learner initialized with {'river' if RIVER_AVAILABLE else 'sklearn'}")
 
-    def _create_dummy_model(self) -> Any:
+    def _create_dummy_model(self, n_features: int = 32) -> Any:
         """Create a dummy model for testing if no production model exists."""
-        logger.warning("Creating dummy model for testing")
+        logger.warning(f"Creating dummy model for testing with {n_features} features")
         from sklearn.linear_model import LogisticRegression
 
         model = LogisticRegression()
         # Fit on dummy data
-        X_dummy = np.random.randn(10, 5)
+        X_dummy = np.random.randn(10, n_features)
         y_dummy = np.random.randint(0, 2, 10)
         model.fit(X_dummy, y_dummy)
         return model

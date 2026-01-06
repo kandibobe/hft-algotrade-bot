@@ -14,7 +14,7 @@ class TestHRP(unittest.TestCase):
         a2 = a1 + np.random.normal(0, 0.001, 100)
         
         # Asset 3 is independent
-        a3 = np.random.normal(0.001, 0.05, 100).cumsum() + 100
+        a3 = np.random.normal(0.001, 0.02, 100).cumsum() + 100
         
         df = pd.DataFrame({
             'BTC/USDT': a1,

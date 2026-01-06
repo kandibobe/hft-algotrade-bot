@@ -101,7 +101,7 @@ class ModelOptimizer:
         X_test = X.iloc[train_size:]
         y_test = y.iloc[train_size:]
 
-        # 5. Scaling/Feature Selection (Fit on Train)
+        # 5. Scaling/Correlation Feature Selection (Fit on Train)
         X_train = self.feature_engineer.fit_scaler_and_selector(X_train)
         X_test = self.feature_engineer.transform_scaler_and_selector(X_test)
 
@@ -111,15 +111,16 @@ class ModelOptimizer:
             optimize_hyperparams=False,
             n_trials=0,
             models_dir="user_data/models",
+            feature_selection=self.config.ml.feature_selection # Pass down config
         )
 
         trainer = ModelTrainer(trainer_config)
-        model, metrics = trainer.train(X_train, y_train, X_test, y_test)
+        model, metrics, final_features = trainer.train(X_train, y_train, X_test, y_test)
 
         # 7. Save Model
-        self._save_model(model, pair, metrics, X.columns.tolist())
+        self._save_model(model, pair, metrics, final_features)
 
-        return {"success": True, "metrics": metrics, "model": model}
+        return {"success": True, "metrics": metrics, "model": model, "features": final_features}
 
     def optimize_model(self, data: pd.DataFrame, pair: str) -> dict[str, Any]:
         """

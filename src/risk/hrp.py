@@ -25,7 +25,7 @@ def get_hrp_weights(prices: pd.DataFrame) -> dict[str, float]:
     Returns:
         Dictionary of {symbol: weight}
     """
-    if prices.empty or prices.shape[1] < 2:
+    if prices.empty or prices.shape[1] < 2 or len(prices) < 10:
         return {col: 1.0/max(1, prices.shape[1]) for col in prices.columns}
         
     # 1. Calculate Returns and Covariance

@@ -150,6 +150,7 @@ async def test_shadow_mode_execution(strategy):
     # We need to mock DatabaseManager to avoid real DB connection in test
     with patch('src.database.db_manager.DatabaseManager') as MockDB:
         executor = SmartOrderExecutor(aggregator=mock_aggregator, shadow_mode=True)
+        executor.risk_manager.circuit_breaker.manual_reset()
         executor._running = True # Simulate started executor
         
         order = ChaseLimitOrder(
@@ -198,6 +199,7 @@ async def test_latency_tracking(strategy):
     
     with patch('src.database.db_manager.DatabaseManager'):
         executor = SmartOrderExecutor(aggregator=mock_aggregator, shadow_mode=True)
+        executor.risk_manager.circuit_breaker.manual_reset()
         executor._running = True
         
         order = ChaseLimitOrder(
@@ -228,6 +230,7 @@ async def test_multi_exchange_risk_aggregation(strategy):
     from src.risk.risk_manager import RiskManager
     
     rm = RiskManager()
+    rm.circuit_breaker.manual_reset()
     
     # Initialize two exchanges
     rm.initialize(account_balance=10000.0, exchange="binance")

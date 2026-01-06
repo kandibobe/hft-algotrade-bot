@@ -90,11 +90,11 @@ class RiskManager:
                 if sizing_config is None:
                     sizing_config = PositionSizingConfig(
                         max_position_pct=cfg.risk.max_position_pct,
-                        max_risk_pct=cfg.risk.max_portfolio_risk,
+                        max_portfolio_risk_pct=cfg.risk.max_portfolio_risk,
                     )
 
                 if liquidation_config is None:
-                    liquidation_config = LiquidationConfig(buffer_pct=cfg.risk.liquidation_buffer)
+                    liquidation_config = LiquidationConfig(safety_buffer=cfg.risk.safety_buffer)
             except Exception as e:
                 logger.warning(
                     f"Could not load unified config for RiskManager: {e}. Using defaults."

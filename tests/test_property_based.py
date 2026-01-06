@@ -3,7 +3,7 @@ Property-based tests for trading system components.
 Uses Hypothesis for generative testing.
 """
 
-from hypothesis import given, strategies as st
+from hypothesis import given, strategies as st, settings, HealthCheck
 import hypothesis.extra.numpy as npst
 import numpy as np
 import pandas as pd
@@ -13,6 +13,7 @@ from src.utils.indicators import calculate_all_indicators
 
 
 class TestPositionSizing:
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         balance=st.floats(min_value=1000, max_value=100000),
         risk_pct=st.floats(min_value=0.01, max_value=0.05),

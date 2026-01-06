@@ -17,6 +17,7 @@ from typing import Any
 
 from src.utils.logger import log
 from src.ml.training.model_registry import ModelRegistry
+from src.ml.online_learner import OnlineLearner, OnlineLearningConfig
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +38,14 @@ class OrchestratorConfig:
     cooldown_minutes: int = 360 # Minimum time between retraining
     
     # Model Registry
-    model_registry_path: str = "user_data/models/registry/registry.json"
+    model_registry_dir: str = "user_data/models/registry"
 
 class AutomatedRetrainingOrchestrator:
     """
     Orchestrates the ML lifecycle.
     """
     
-    def __init__(self, config: OrchestratorConfig | None = None):
+    def __init__(self, config: OrchestratorConfig | None = None, online_learning_enabled: bool = False):
         self.config = config or OrchestratorConfig()
         
         # State
@@ -57,9 +58,23 @@ class AutomatedRetrainingOrchestrator:
         self.rolling_profit = 0.0
         
         # Dependencies
-        self.registry = ModelRegistry(self.config.model_registry_path)
+        self.registry = ModelRegistry(self.config.model_registry_dir)
+        
+        # Online Learning
+        self.online_learner = None
+        if online_learning_enabled:
+            self._init_online_learner()
         
         logger.info("ML Orchestrator initialized")
+
+    def _init_online_learner(self):
+        """Initialize the online learner."""
+        try:
+            prod_model_path = "user_data/models/production_model.pkl"
+            self.online_learner = OnlineLearner(prod_model_path)
+            logger.info("Online Learner integrated into Orchestrator")
+        except Exception as e:
+            logger.error(f"Failed to initialize Online Learner: {e}")
 
     def record_trade_result(self, trade_result: dict):
         """

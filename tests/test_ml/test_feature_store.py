@@ -165,8 +165,8 @@ class TestRedisFeatureStore:
         test_features = {"open": 50000.0, "close": 50500.0, "volume": 1000.0}
         store.set_features(symbol, timestamp, test_features)
         
-        # Verify redis set was called
-        mock_redis.return_value.set.assert_called()
+        # Verify redis setex was called
+        mock_redis.return_value.setex.assert_called()
     
     @patch('src.ml.feature_store.redis.Redis')
     def test_get_online_features_with_redis(self, mock_redis):
@@ -198,6 +198,7 @@ class TestRedisFeatureStore:
         mock_redis.return_value.ping.return_value = True
         mock_redis.return_value.info.return_value = {'redis_version': '6.0.0', 'used_memory_human': '1M'}
         mock_redis.return_value.dbsize.return_value = 100
+        mock_redis.return_value.scan_iter.return_value = ["key"] * 100
         
         store.initialize()
         

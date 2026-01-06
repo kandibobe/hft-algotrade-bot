@@ -35,13 +35,23 @@ class MonteCarloSimulator:
         self.max_drawdown_limit = max_drawdown_limit
         self.results = None
 
-    def run(self, noise_distribution: str = "t", noise_std: float = 0.001):
+    def run(
+        self,
+        noise_distribution: str = "t",
+        noise_std: float = 0.001,
+        stress_test: bool = False,
+        black_swan_prob: float = 0.01,
+        black_swan_magnitude: float = -0.1,
+    ):
         """
         Run the Monte Carlo simulation.
 
         Args:
             noise_distribution: 'normal' or 't' for the noise distribution.
             noise_std: Standard deviation of the noise to add to returns.
+            stress_test: Whether to include 'Black Swan' events.
+            black_swan_prob: Probability of a black swan event per trade.
+            black_swan_magnitude: Magnitude of the black swan event (e.g., -0.1 for -10%).
         """
         logger.info(f"Starting Monte Carlo Simulation ({self.iterations} iterations)...")
 
@@ -62,7 +72,13 @@ class MonteCarloSimulator:
 
             simulated_profits = shuffled_profits + noise
 
+            # Apply stress test (Black Swan events)
+            if stress_test:
+                black_swans = (np.random.random(len(profits)) < black_swan_prob).astype(float)
+                simulated_profits += black_swans * black_swan_magnitude
+
             cumulative_returns = np.cumprod(1 + simulated_profits)
+
             equity_curve = self.initial_capital * cumulative_returns
             all_equity_curves.append(equity_curve)
 

@@ -208,11 +208,15 @@ class MLTrainingPipeline:
 
             if result.get("success"):
                 primary_model = result.get("model")
+                used_features = result.get("features")
                 
                 # 2. Train Meta-Model (Phase 3 Integration)
-                logger.info(f"Retraining Meta-Model for {pair}...")
-                self._train_meta_model(df, pair, primary_model)
-                
+                if used_features:
+                    logger.info(f"Retraining Meta-Model for {pair}...")
+                    self._train_meta_model(df, pair, primary_model, used_features)
+                else:
+                    logger.warning("Skipping meta-model training as feature list was not returned.")
+
                 return primary_model
             else:
                 logger.error(f"Training failed for {pair}: {result.get('error')}")
@@ -222,7 +226,7 @@ class MLTrainingPipeline:
             logger.error(f"\n❌ Error training {pair}: {e}", exc_info=True)
             return None
 
-    def _train_meta_model(self, df: pd.DataFrame, pair: str, primary_model: Any):
+    def _train_meta_model(self, df: pd.DataFrame, pair: str, primary_model: Any, used_features: list[str]):
         """Train a secondary model on primary model's errors."""
         try:
             # Engineer features and get primary predictions
@@ -232,8 +236,11 @@ class MLTrainingPipeline:
             common_idx = features.index.intersection(labels.index)
             X = features.loc[common_idx]
             
+            # Ensure we use the same features the primary model was trained on
+            X_for_predict = X[used_features]
+
             # Get primary signals
-            y_pred = primary_model.predict(X)
+            y_pred = primary_model.predict(X_for_predict)
             
             # Create meta-labels (1 if primary was right, 0 otherwise)
             meta_df = pd.DataFrame({
@@ -246,7 +253,7 @@ class MLTrainingPipeline:
             # Train meta-model (simple XGBoost for filtering)
             import xgboost as xgb
             meta_model = xgb.XGBClassifier(n_estimators=100, max_depth=3, learning_rate=0.1)
-            meta_model.fit(X, y_meta)
+            meta_model.fit(X_for_predict, y_meta)
             
             # Save meta-model
             pair_slug = pair.replace("/", "_")

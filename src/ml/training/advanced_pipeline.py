@@ -1024,6 +1024,10 @@ class TradingMetricsConfig:
     # Risk metrics
     risk_free_rate: float = 0.02  # 2% annual risk-free rate
 
+    # Uncertainty Estimation
+    use_uncertainty: bool = True
+    uncertainty_method: str = "entropy"  # entropy, ensemble_std
+
 
 class TradingMetrics:
     """
@@ -1270,6 +1274,20 @@ class TradingMetrics:
             "annualized_return": annualized_return,
         }
 
+    def calculate_uncertainty(self, proba: np.ndarray) -> np.ndarray:
+        """
+        Calculate prediction uncertainty (Entropy).
+        
+        Args:
+            proba: Prediction probabilities [n_samples, n_classes]
+            
+        Returns:
+            Entropy values
+        """
+        # Entropy = -sum(p * log(p))
+        entropy = -np.sum(proba * np.log(proba + 1e-10), axis=1)
+        return entropy
+
 
 class AdvancedTradingPipeline:
     """
@@ -1329,6 +1347,13 @@ class AdvancedTradingPipeline:
         # Stage 6: Trading metrics (on full data with best model)
         model.fit(X_selected, y)
         predictions = model.predict(X_selected)
+        
+        # Uncertainty estimation
+        if hasattr(model, "predict_proba"):
+            proba = model.predict_proba(X_selected)
+            uncertainty = self.metrics_calculator.calculate_uncertainty(proba)
+        else:
+            uncertainty = np.zeros(len(predictions))
 
         trading_metrics = self.metrics_calculator.calculate_metrics(
             df_processed.loc[X_selected.index], pd.Series(predictions, index=X_selected.index), y
@@ -1343,6 +1368,7 @@ class AdvancedTradingPipeline:
             "y": y,
             "cv_results": cv_results,
             "trading_metrics": trading_metrics,
+            "uncertainty": pd.Series(uncertainty, index=X_selected.index),
             "feature_importance": self.feature_selector.get_feature_importance(),
             "model": model,
         }

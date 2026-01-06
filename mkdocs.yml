@@ -14,11 +14,14 @@ theme:
 
 plugins:
   - search
+  - mike:
+      version_selector: true
+      canonical_version: latest
   - mkdocstrings:
       default_handler: python
       handlers:
         python:
-          paths: [.]
+          paths: [src]
           options:
             show_source: true
             show_root_heading: true
@@ -26,13 +29,37 @@ plugins:
 
 nav:
   - Home: index.md
-  - Architecture: architecture.md
-  - MFT Layer: mft_architecture.md
-  - Strategy Development: strategy_development.md
-  - Risk Management: risk_management.md
-  - ML Pipeline: ml_pipeline.md
-  - API Reference:
-      - Config: api/config.md
-      - Database: api/database.md
-      - Order Manager: api/order_manager.md
-      - Websocket: api/websocket.md
+  - Getting Started:
+    - Installation: getting_started/installation.md
+    - Quick Start: getting_started/quick_start.md
+    - Telegram Bot: getting_started/telegram.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - MFT Layer: architecture/mft_layer.md
+    - Project Structure: architecture/project_structure.md
+  - Guides:
+    - Strategy Development: guides/strategy_development.md
+    - Risk Management: guides/risk_management.md
+    - ML Pipeline: guides/ml_pipeline.md
+    - Backtesting: guides/backtesting.md
+    - Walk Forward Optimization: guides/wfo.md
+    - Advanced Pipeline: guides/advanced_pipeline.md
+    - Nightly HyperOpt: guides/nightly_hyperopt.md
+  - Concepts:
+    - Health Check System: concepts/health_check.md
+    - Structured Logging: concepts/structured_logging.md
+  - Operations:
+    - Deployment: ops/deployment.md
+    - Launch Checklist: ops/launch_checklist.md
+    - Automation: ops/automation.md
+    - Tools: ops/tools.md
+  - Reference:
+    - API Overview: reference/api_overview.md
+    - Testing Guide: reference/testing.md
+  - Russian Documentation:
+    - Home: ru/index.md
+    - API Setup: ru/api_setup.md
+    - Telegram Setup: ru/telegram.md
+    - Architecture Overview: ru/architecture_overview.md
+    - Risk Management: ru/risk_management.md
+    - ML Pipeline: ru/ml_pipeline.md

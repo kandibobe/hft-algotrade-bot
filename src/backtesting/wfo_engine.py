@@ -98,22 +98,45 @@ class WFOEngine:
             if self.wfo_config.optimize_hyperparams:
                 pipeline.config.training.hyperopt_trials = self.wfo_config.n_trials
                 
-            model = pipeline.train_and_get_model(
+            # Directly call the optimizer to get the model and feature list
+            train_result = pipeline.optimizer.train(
                 train_data, 
                 pair, 
                 optimize=self.wfo_config.optimize_hyperparams
             )
 
-            if model is None:
+            if not train_result.get("success"):
                 logger.warning(f"Skipping fold due to training failure for {pair}")
+                fold_start += pd.Timedelta(days=self.wfo_config.step_days)
                 continue
+
+            model = train_result.get("model")
+            used_features = train_result.get("features")
 
             # 2. Generate signals using the trained model
             try:
-                predictions = model.predict(test_data)
-                signals = pd.Series(predictions, index=test_data.index)
+                # Process test data to get the full feature set
+                # The feature_engineer instance in the pipeline is already fitted on train_data
+                feature_engineer = pipeline.optimizer.feature_engineer
+                prepared_test_data = feature_engineer.prepare_data(test_data.copy())
+                processed_test_data = feature_engineer.transform_scaler_and_selector(prepared_test_data)
+
+                # Align indexes to avoid mismatches
+                common_index = test_data.index.intersection(processed_test_data.index)
+                
+                # Filter for the exact features the model needs
+                # Also, ensure all required features are present in the processed test data
+                missing_features = set(used_features) - set(processed_test_data.columns)
+                if missing_features:
+                    raise ValueError(f"Missing features in test data: {missing_features}")
+
+                X_test = processed_test_data.loc[common_index][used_features]
+
+                predictions = model.predict(X_test)
+                signals = pd.Series(predictions, index=X_test.index)
             except Exception as e:
-                logger.error(f"Error generating signals for fold: {e}")
+                logger.error(f"Error generating signals for fold: {e}", exc_info=True)
+                fold_start += pd.Timedelta(days=self.wfo_config.step_days)
                 continue
 
             # 3. Run the backtester on the out-of-sample test data
@@ -139,7 +162,21 @@ class WFOEngine:
 
         if not all_trades:
             logger.warning("No trades were executed in the entire Walk-Forward Optimization.")
-            return {"summary": "No trades executed."}
+            return {
+                "summary": {
+                    "Total Return": "0.00%",
+                    "Sharpe Ratio": "0.00",
+                    "Sortino Ratio": "0.00",
+                    "Calmar Ratio": "0.00",
+                    "Max Drawdown": "0.00%",
+                    "Total Trades": 0,
+                    "Win Rate": "N/A",
+                    "Profit Factor": "0.00",
+                },
+                "trades": pd.DataFrame(),
+                "equity_curve": pd.Series([1.0], index=[data.index[-1]]),
+                "fold_results": fold_results,
+            }
 
         # 4. Aggregate and analyze the results
         combined_trades = pd.concat(all_trades)

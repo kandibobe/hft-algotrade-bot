@@ -34,7 +34,9 @@ class AlternativeDataFetcher:
             response = await self.http_client.get(url)
             response.raise_for_status()
             data = response.json()
-            return data['data'][0]
+            if data and 'data' in data and len(data['data']) > 0:
+                 return data['data'][0]
+            return {}
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error fetching Fear and Greed Index: {e}")
             return {}
@@ -45,15 +47,37 @@ class AlternativeDataFetcher:
     async def fetch_crypto_news_sentiment(self, symbol: str) -> float:
         """
         Fetches news sentiment for a specific symbol.
-        Simulates sentiment analysis from public APIs.
+        
+        Strategy:
+        1. (Future) Use Paid API if configured (e.g. CryptoPanic).
+        2. (Current) Fallback to Fear & Greed Index normalization as a global sentiment proxy.
+           This is free, reliable, and provides a decent "market mood" baseline.
+        
         Returns a score from -1.0 (Bearish) to 1.0 (Bullish).
         """
-        # In a real implementation, this would call Cryptopanic or similar API
-        # and use a model like VADER or TextBlob for scoring.
-        logger.info(f"Fetching news sentiment for {symbol}...")
+        logger.info(f"Fetching news sentiment proxy for {symbol}...")
         
-        # Placeholder: returning a slightly positive neutral sentiment
-        return 0.15 
+        # Fallback: Use Fear & Greed Index as general market sentiment proxy
+        fng_data = await self.fetch_fear_and_greed_index()
+        if fng_data and 'value' in fng_data:
+            try:
+                # Normalize 0-100 to -1.0 to 1.0
+                # 0 -> -1.0 (Extreme Fear)
+                # 50 -> 0.0 (Neutral)
+                # 100 -> 1.0 (Extreme Greed)
+                fng_value = float(fng_data['value'])
+                sentiment_score = (fng_value - 50) / 50.0
+                
+                # Clip just in case
+                sentiment_score = max(-1.0, min(1.0, sentiment_score))
+                
+                logger.debug(f"Sentiment derived from F&G ({fng_value}): {sentiment_score:.2f}")
+                return sentiment_score
+            except (ValueError, TypeError) as e:
+                 logger.warning(f"Error parsing F&G value: {e}")
+
+        # Absolute fallback
+        return 0.0 
 
 async def get_fear_and_greed_index() -> Dict[str, Any]:
     """

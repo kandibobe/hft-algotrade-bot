@@ -30,7 +30,7 @@ class SmartOrder(Order):
 
 
 @dataclass
-class ChaseLimitOrder(LimitOrder):
+class ChaseLimitOrder(LimitOrder, SmartOrder):
     """
     Limit order that chases the best bid/ask.
 
@@ -118,3 +118,47 @@ class VWAPOrder(SmartOrder):
     def __post_init__(self):
         super().__post_init__()
         self.order_type = OrderType.VWAP
+
+@dataclass
+class PeggedOrder(SmartOrder):
+    """
+    Order pegged to a reference price (Best Bid/Ask).
+    
+    Logic:
+    - Automatically updates price as market moves.
+    - Maintains 'offset' distance.
+    - Primary Peg: Buy @ Best Bid / Sell @ Best Ask
+    - Opposite Peg: Buy @ Best Ask / Sell @ Best Bid (Aggressive)
+    """
+    
+    offset: float = 0.0
+    peg_side: str = "primary" # 'primary' (same side) or 'opposite' (crossing spread)
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.order_type = OrderType.PEGGED
+        
+    def on_ticker_update(self, ticker: dict):
+        """Adjust price based on pegged reference."""
+        if not self.is_active:
+            return
+
+        best_bid = ticker.get("best_bid")
+        best_ask = ticker.get("best_ask")
+        
+        if not best_bid or not best_ask:
+            return
+            
+        new_price = self.price
+        
+        if self.is_buy:
+            reference = best_bid if self.peg_side == "primary" else best_ask
+            new_price = reference + self.offset
+        else: # Sell
+            reference = best_ask if self.peg_side == "primary" else best_bid
+            new_price = reference - self.offset
+            
+        # Update if changed significantly
+        if abs(new_price - self.price) > 0.0000001:
+            logger.info(f"PeggedOrder {self.order_id}: Adjusting price {self.price} -> {new_price} (Ref: {reference})")
+            self.price = new_price

@@ -183,6 +183,17 @@ class StoicRiskMixin:
             symbol=pair, entry_price=rate, stop_loss_price=stop_price, side=side, leverage=leverage
         )
 
+        # 3. Extra Safety Check: Price Deviation
+        # Prevent entry if price has deviated too much from the signal price (if available)
+        # Or if price is extremely far from EMA (flash crash protection)
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+        if not dataframe.empty:
+            last_candle = dataframe.iloc[-1]
+            ema_200 = last_candle.get("ema_200")
+            if ema_200 and rate < ema_200 * 0.7:  # 30% deviation from 200 EMA
+                logger.warning(f"🚫 Trade blocked: Extreme price deviation from EMA200 for {pair}")
+                return False
+
         if not evaluation["allowed"]:
             logger.warning(f"🚫 Trade blocked by Risk Manager: {evaluation['rejection_reason']}")
             return False

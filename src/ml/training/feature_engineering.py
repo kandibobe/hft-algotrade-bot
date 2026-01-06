@@ -187,12 +187,18 @@ class FeatureEngineer:
         self._fractional_differentiator = None
         self._stationarity_applied = False
 
-    def prepare_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def prepare_data(self, df: pd.DataFrame, use_cache: bool = True) -> pd.DataFrame:
         """
         Prepare data: Stationarity -> Engineer -> Clean.
         Does NOT remove correlated features or scale.
         Safe to call on full dataset if you split afterwards.
         """
+        if use_cache:
+            cache_key = hash(tuple(df.index))
+            if cache_key in self._feature_cache:
+                logger.info("Using cached features")
+                return self._feature_cache[cache_key]
+
         logger.info(f"Preparing features from {len(df)} rows")
 
         # Apply stationarity transformation if configured
@@ -204,7 +210,13 @@ class FeatureEngineer:
         # AGGRESSIVE CLEANING: Replace inf with NaN and drop all NaN rows
         result = self._apply_aggressive_cleaning(result)
 
+        if use_cache:
+            self._feature_cache[cache_key] = result
+
         return result
+>>>>+++ REPLACE
+
+
 
     def fit_scaler_and_selector(self, df: pd.DataFrame) -> pd.DataFrame:
         """

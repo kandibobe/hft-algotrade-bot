@@ -14,8 +14,8 @@ from datetime import datetime
 
 from src.notification.telegram import TelegramBot
 from src.order_manager.exchange_backend import CCXTBackend, IExchangeBackend, MockExchangeBackend
-from src.order_manager.order_types import OrderStatus, IcebergOrder, PeggedOrder
-from src.order_manager.smart_order import ChaseLimitOrder, SmartOrder, TWAPOrder, VWAPOrder
+from src.order_manager.order_types import OrderStatus, IcebergOrder
+from src.order_manager.smart_order import ChaseLimitOrder, SmartOrder, TWAPOrder, VWAPOrder, PeggedOrder
 from src.risk.risk_manager import RiskManager
 from src.utils.logger import log  # Use structured logger
 from src.websocket.aggregator import AggregatedTicker, DataAggregator
@@ -172,6 +172,10 @@ class SmartOrderExecutor:
             task = asyncio.create_task(self._manage_order(order))
             self._order_tasks[order.order_id] = task
 
+            # Performance: track submission latency
+            sub_latency = (order.submission_timestamp - order.signal_timestamp) * 1000
+            log.info(f"Order {order.order_id} submitted. Pipeline Latency: {sub_latency:.2f}ms")
+
             from src.utils.logger import log_order
 
             log_order(
@@ -259,6 +263,10 @@ class SmartOrderExecutor:
                 f"Error: {e!s}"
             )
         finally:
+            # Performance: track total execution time
+            total_time = (time.time() - order.submission_timestamp) if order.submission_timestamp else 0
+            log.info(f"Order {order.order_id} finished. Total execution time: {total_time:.2f}s. Status: {order.status.value}")
+
             async with self._lock:
                 if order.order_id in self._active_orders:
                     del self._active_orders[order.order_id]
@@ -412,8 +420,11 @@ class SmartOrderExecutor:
 
     async def _execute_pegged_order(self, order: PeggedOrder):
         """Logic for handling Pegged orders."""
-        logger.warning("Pegged orders are not yet implemented.")
-        order.update_status(OrderStatus.REJECTED, "Pegged orders are not yet implemented.")
+        logger.info(f"Starting Pegged Order {order.order_id} (Side: {order.side.value}, Offset: {order.offset})")
+        # Pegged orders behave like standard limit orders that get updated dynamically.
+        # The main loop in _execute_standard_order handles timeout and status checks.
+        # The _process_ticker_update (triggered by aggregator) handles price adjustments.
+        await self._execute_standard_order(order)
     
     async def execute_arbitrage_trade(self, ticker: AggregatedTicker, amount: float):
         """Executes a cross-exchange arbitrage trade."""
