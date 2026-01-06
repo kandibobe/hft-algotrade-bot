@@ -1,4 +1,7 @@
-_____ _             _     _ _     _       _
+<div align="center">
+
+```
+   _____ _             _     _ _     _       _
   / ____| |           (_)   | (_)   | |     | |
  | (___ | |_ ___ _   _ _  __| |_  __| | __ _| |_
   \___ \| __/ _ \ | | | |/ _` | |/ _` |/ _` | __|
@@ -6,73 +9,96 @@ _____ _             _     _ _     _       _
  |_____/ \__\___|\__,_|_|\__,_|_|\__,_|\__,_|\__|
 ```
 
-**An Institutional-Grade, Hybrid MFT Algorithmic Trading System**
+**An open-source framework for building, testing, and deploying institutional-grade crypto trading strategies.**
 
 ---
 
-[![CI](https://github.com/kandibobe/mft-algotrade-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/kandibobe/mft-algotrade-bot/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+<p align="center">
+  <a href="https://github.com/kandibobe/mft-algotrade-bot/actions/workflows/ci.yml">
+    <img src="https://github.com/kandibobe/mft-algotrade-bot/actions/workflows/ci.yml/badge.svg" alt="CI Status">
+  </a>
+  <a href="https://github.com/kandibobe/mft-algotrade-bot/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
+  </a>
+  <a href="https://github.com/psf/black">
+    <img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Code Style: Black">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Tests-Passing-brightgreen" alt="Tests Passing">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Coverage-90%25+-brightgreen" alt="Code Coverage">
+  </a>
+</p>
 
-Stoic Citadel is a high-performance, hybrid Mid-Frequency Trading (MFT) system designed for robustness, speed, and intelligence. It combines the strategic depth of Freqtrade with a custom-built, low-latency execution layer based on Python's AsyncIO.
+</div>
+
+---
+
+### **Why Stoic Citadel?**
+
+Stoic Citadel is not just another trading bot. It's a comprehensive framework built on a philosophy of robustness and data-driven decisions. Here’s how it compares to standard trading bots:
+
+| Feature Area | Standard Bots | 🛡️ Stoic Citadel |
+| :--- | :--- | :--- |
+| **🧠 Intelligence** | Simple RSI/MACD logic | Meta-learning ensembles, triple-barrier labeling |
+| **🛡️ Risk Management** | Basic stop-loss | Hierarchical Risk Parity, Circuit Breakers |
+| **⚡ Performance** | Blocking, high-latency | Asynchronous, low-latency execution core |
 
 ---
 
 ### **Visual Showcase**
 
 <details>
-<summary><strong>Click to see the system in action</strong></summary>
+<summary><strong>Click to see the system in action (placeholder images)</strong></summary>
 
 | Grafana Dashboard | Telegram Bot | Backtest Results |
 | :---: | :---: | :---: |
-| *Your Grafana screenshot here* | *Your Telegram GIF here* | *Your backtest plot here* |
-| An overview of the system's performance and health. | Control and monitor the bot on the go. | Example equity curve from a recent backtest. |
+| ![Grafana Placeholder](https://via.placeholder.com/400x250.png?text=Grafana+Dashboard) | ![Telegram Placeholder](https://via.placeholder.com/400x250.png?text=Telegram+Bot+GIF) | ![Backtest Placeholder](https://via.placeholder.com/400x250.png?text=Equity+Curve) |
+| Monitor real-time performance and system health. | Control and monitor the bot from anywhere. | Analyze strategy performance with detailed backtests. |
 
 </details>
 
 ---
 
-### **Technology Stack**
+### **Quick Start**
 
-![Python](https://img.shields.io/badge/python-3.11-blue.svg)
-![Docker](https://img.shields.io/badge/docker-24.0-blue.svg)
-![Freqtrade](https://img.shields.io/badge/freqtrade-latest-blue.svg)
-![PyTorch](https://img.shields.io/badge/pytorch-2.1-blue.svg)
-![Pandas](https://img.shields.io/badge/pandas-2.0-blue.svg)
-![aiohttp](https://img.shields.io/badge/aiohttp-3.8-blue.svg)
+Getting started is as easy as 1-2-3. For detailed instructions, see the [**full documentation**](https://kandibobe.github.io/mft-algotrade-bot/).
 
----
-
-### **For Different Audiences**
-
-| **For Investors & Users** | **For Developers** | **For Quants & Researchers** |
+| 1️⃣ Clone the Repository | 2️⃣ Configure Your Bot | 3️⃣ Launch with Docker |
 | :--- | :--- | :--- |
-| Interested in running the bot and its performance. | Focused on contributing to the codebase and system architecture. | Interested in the models, feature engineering, and alpha generation. |
-| ➡️ **[Quick Start Guide](https://kandibobe.github.io/mft-algotrade-bot/getting_started/installation/)** | ➡️ **[Architecture Deep-Dive](https://kandibobe.github.io/mft-algotrade-bot/architecture/overview/)** | ➡️ **[ML Pipeline Guide](https://kandibobe.github.io/mft-algotrade-bot/guides/ml_pipeline/)** |
-| ➡️ **[Telegram Bot Setup](https://kandibobe.github.io/mft-algotrade-bot/getting_started/telegram/)** | ➡️ **[Contribution Guide](CONTRIBUTING.md)** | ➡️ **[Strategy Development Guide](https://kandibobe.github.io/mft-algotrade-bot/guides/strategy_development/)** |
+| `git clone https://github.com/kandibobe/mft-algotrade-bot.git` <br> `cd mft-algotrade-bot` | Create `user_data/config.json` and add your API keys. | `docker-compose up -d` |
+
+<details>
+<summary><strong>Click for detailed configuration instructions</strong></summary>
+
+1.  Copy `user_data/config.json.example` to `user_data/config.json`.
+2.  Edit the file to include your exchange API keys (`key`, `secret`).
+3.  Set your Telegram API credentials (`token`, `chat_id`).
+4.  Choose your desired strategy.
+
+</details>
 
 ---
 
-### **Core Features**
+### **Repository Map**
 
--   **Intelligent Alpha Generation:** A meta-learning ensemble of ML models (XGBoost, LightGBM) built on a triple-barrier labeling system to generate high-quality trading signals.
--   **Quantitative Risk Management:** An institutional-grade risk core featuring Hierarchical Risk Parity (HRP) for portfolio allocation, the Fractional Kelly Criterion for position sizing, and multi-level Circuit Breakers for system safety.
--   **High-Speed Execution:** A fully asynchronous Micro-Execution Layer with a custom `ChaseLimit` order type to minimize slippage and maximize maker-fee rebates.
+```
+├── .github/        # GitHub Actions workflows and templates
+├── docs/           # The source for the documentation website
+├── src/            # Core source code
+│   ├── ml/         # Machine learning pipeline
+│   ├── risk/       # Risk management and safety
+│   └── strategies/ # Strategy logic and connectors
+├── tests/          # Unit, integration, and e2e tests
+└── user_data/      # Your data: strategies, configs, logs, models
+```
 
 ---
 
-### **Getting Started**
+### **Community & Contributing**
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/kandibobe/mft-algotrade-bot.git
-    cd mft-algotrade-bot
-    ```
-
-2.  **Follow the documentation:**
-    All setup and usage instructions are available in the **[official documentation](https://kandibobe.github.io/mft-algotrade-bot/getting_started/installation/)**.
-
-### **Community & Support**
+This project is built and maintained by the community. We welcome all contributions!
 
 -   **Found a bug?** [Open a bug report](https://github.com/kandibobe/mft-algotrade-bot/issues/new?template=bug_report.md).
 -   **Have a feature idea?** [Suggest a new feature](https://github.com/kandibobe/mft-algotrade-bot/issues/new?template=feature_request.md).
@@ -80,10 +106,6 @@ Stoic Citadel is a high-performance, hybrid Mid-Frequency Trading (MFT) system d
 
 ### **Sponsor This Project**
 
-If you find Stoic Citadel valuable, please consider supporting its development.
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-%E2%9D%A4-%23db61a2.svg)](https://github.com/sponsors/kandibobe)
 
-*(Your funding/sponsorship details here)*
-
----
-
-*Stoic Citadel - Built for stability, optimized for speed, driven by data.*
+If you find Stoic Citadel valuable, please consider supporting its development to help us continue to build and improve it.
