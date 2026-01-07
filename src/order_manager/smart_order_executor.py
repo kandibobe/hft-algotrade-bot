@@ -73,9 +73,18 @@ class SmartOrderExecutor:
 
         # Safety Guard for Live Trading
         if not self._dry_run:
+            # 1. Environment Confirmation
             confirm = os.getenv("CONFIRM_LIVE_TRADING", "false").lower()
             if confirm != "true":
                 msg = "LIVE TRADING BLOCKED: Environment variable CONFIRM_LIVE_TRADING=true is missing!"
+                log.error(msg)
+                raise RuntimeError(msg)
+
+            # 2. Credential Check
+            key = self._exchange_config.get("key")
+            secret = self._exchange_config.get("secret")
+            if not key or not secret:
+                msg = "LIVE TRADING BLOCKED: Missing API Key or Secret in configuration."
                 log.error(msg)
                 raise RuntimeError(msg)
 

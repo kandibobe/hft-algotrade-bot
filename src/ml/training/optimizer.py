@@ -394,7 +394,7 @@ class ModelOptimizer:
             model_name=pair_slug,
             model_path=str(model_path),
             metrics=metrics,
-            training_config=self.training_config.dict(),
+            training_config=self.training_config.model_dump(),
             feature_names=feature_names,
             tags=["standard_training", f"version:{version}", f"type:{model_type}"],
         )

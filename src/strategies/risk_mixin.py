@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from freqtrade.persistence import Trade
 
-from src.config.unified_config import load_config
+from src.config.manager import ConfigurationManager
 from src.ml.online_learner import OnlineLearner
 from src.risk.circuit_breaker import CircuitBreakerConfig
 from src.risk.liquidation import LiquidationConfig
@@ -97,10 +97,8 @@ class StoicRiskMixin:
         Initialize Risk Manager on bot startup.
         """
         try:
-            # Load unified config
-            # Note: We assume config file location or load default
-            # In production, this should pass the actual config path
-            config = load_config()
+            # Load unified config via ConfigurationManager Singleton
+            config = ConfigurationManager.get_config()
 
             # Create configs
             cb_config = CircuitBreakerConfig(

@@ -106,19 +106,14 @@ class ExchangeConfig(BaseModel):
     rate_limit: bool = Field(default=True, description="Enable rate limiting to avoid bans")
 
     @model_validator(mode="after")
-    def decrypt_secrets(cls, values: Any) -> Any:
+    def decrypt_secrets(self) -> "ExchangeConfig":
         """Automatically decrypt secrets if they are encrypted."""
-        if isinstance(values, dict):
-            if values.get("api_key"):
-                values["api_key"] = SecretManager.decrypt(values["api_key"])
-            if values.get("api_secret"):
-                values["api_secret"] = SecretManager.decrypt(values["api_secret"])
-        else:
-            if getattr(values, "api_key", None):
-                values.api_key = SecretManager.decrypt(values.api_key)
-            if getattr(values, "api_secret", None):
-                values.api_secret = SecretManager.decrypt(values.api_secret)
-        return values
+        if self.api_key:
+            self.api_key = SecretManager.decrypt(self.api_key)
+        if self.api_secret:
+            self.api_secret = SecretManager.decrypt(self.api_secret)
+        return self
+
     timeout_ms: int = Field(
         default=30000, ge=1000, le=120000, description="Request timeout in milliseconds"
     )
@@ -179,23 +174,15 @@ class RiskConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_risk_reward(cls, values: Any) -> Any:
+    def validate_risk_reward(self) -> "RiskConfig":
         """Validate that take profit is greater than stop loss for positive risk/reward."""
-        # Handle both Pydantic V1 (dict) and V2 (object) styles
-        if isinstance(values, dict):
-            take_profit = values.get("take_profit_pct")
-            stop_loss = values.get("stop_loss_pct")
-        else:
-            take_profit = getattr(values, "take_profit_pct", None)
-            stop_loss = getattr(values, "stop_loss_pct", None)
-
-        if take_profit is not None and stop_loss is not None:
-            if take_profit < stop_loss:
+        if self.take_profit_pct is not None and self.stop_loss_pct is not None:
+            if self.take_profit_pct < self.stop_loss_pct:
                 logger.warning(
-                    f"Take profit ({take_profit}) < Stop loss ({stop_loss}). "
+                    f"Take profit ({self.take_profit_pct}) < Stop loss ({self.stop_loss_pct}). "
                     f"Consider adjusting for positive risk/reward ratio."
                 )
-        return values
+        return self
 
 
 class StrategyConfig(BaseModel):
@@ -320,6 +307,15 @@ class TelegramConfig(BaseModel):
     enabled: bool = Field(default=False, description="Enable Telegram notifications")
 
 
+class FeatureStoreConfig(BaseModel):
+    """Feature Store configuration."""
+    
+    enabled: bool = Field(default=False, description="Enable Feature Store")
+    use_redis: bool = Field(default=False, description="Use Redis for online store")
+    redis_url: str = Field(default="redis://localhost:6379", description="Redis connection URL")
+    config_path: str = Field(default="feature_repo", description="Path to feature repo")
+
+
 class TradingConfig(BaseSettings):
     """Main trading configuration with environment variable support."""
 
@@ -357,6 +353,7 @@ class TradingConfig(BaseSettings):
     exchange: ExchangeConfig = Field(default_factory=ExchangeConfig)
     risk: RiskConfig = Field(default_factory=RiskConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
+    feature_store: FeatureStoreConfig = Field(default_factory=FeatureStoreConfig)
     training: TrainingConfig = Field(default_factory=TrainingConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
     strategy: StrategyConfig | None = Field(default=None, description="Strategy configuration")
@@ -405,45 +402,28 @@ class TradingConfig(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def validate_live_trading(cls, values: Any) -> Any:
+    def validate_live_trading(self) -> "TradingConfig":
         """Validate configuration for live trading safety."""
-        # Handle both Pydantic V1 (dict) and V2 (object) styles
-        if isinstance(values, dict):
-            dry_run = values.get("dry_run")
-            exchange = values.get("exchange")
-            leverage = values.get("leverage")
-            telegram = values.get("telegram")
-            telegram_token = values.get("telegram_token")
-            telegram_chat_id = values.get("telegram_chat_id")
-        else:
-            dry_run = getattr(values, "dry_run", None)
-            exchange = getattr(values, "exchange", None)
-            leverage = getattr(values, "leverage", None)
-            telegram = getattr(values, "telegram", None)
-            telegram_token = getattr(values, "telegram_token", None)
-            telegram_chat_id = getattr(values, "telegram_chat_id", None)
-
         # Sync environment variables to telegram config if provided
-        if telegram:
-            if telegram_token and not telegram.token:
-                telegram.token = telegram_token
-            if telegram_chat_id and not telegram.chat_id:
-                telegram.chat_id = telegram_chat_id
+        if self.telegram:
+            if self.telegram_token and not self.telegram.token:
+                self.telegram.token = self.telegram_token
+            if self.telegram_chat_id and not self.telegram.chat_id:
+                self.telegram.chat_id = self.telegram_chat_id
 
             # Auto-enable if token and chat_id are present
-            if telegram.token and telegram.chat_id and not telegram.enabled:
-                telegram.enabled = True
+            if self.telegram.token and self.telegram.chat_id and not self.telegram.enabled:
+                self.telegram.enabled = True
 
-        if dry_run is not None and exchange is not None and leverage is not None:
-            if not dry_run and exchange.sandbox:
-                logger.warning(
-                    "dry_run=False but sandbox=True. This will trade on testnet, not mainnet."
-                )
-            if not dry_run and leverage > 1.0:
-                logger.warning(
-                    f"LIVE TRADING with {leverage}x leverage! Make sure you understand the risks."
-                )
-        return values
+        if not self.dry_run and self.exchange and self.exchange.sandbox:
+            logger.warning(
+                "dry_run=False but sandbox=True. This will trade on testnet, not mainnet."
+            )
+        if not self.dry_run and self.leverage > 1.0:
+            logger.warning(
+                f"LIVE TRADING with {self.leverage}x leverage! Make sure you understand the risks."
+            )
+        return self
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""

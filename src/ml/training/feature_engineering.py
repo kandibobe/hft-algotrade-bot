@@ -30,7 +30,7 @@ class FeatureConfig:
     include_meta_labeling_features: bool = True  # Meta-labeling features for De Prado methodology
 
     # Stationarity transformation
-    enforce_stationarity: bool = True
+    enforce_stationarity: bool = False
     fractional_differentiation_d: float = 0.5  # Fractional differentiation parameter
     use_log_returns: bool = True  # Alternative to fractional differentiation
 
@@ -186,6 +186,7 @@ class FeatureEngineer:
         self._scaled_feature_cols: list[str] = []
         self._fractional_differentiator = None
         self._stationarity_applied = False
+        self._feature_cache = {}
 
     def prepare_data(self, df: pd.DataFrame, use_cache: bool = True) -> pd.DataFrame:
         """
@@ -214,9 +215,6 @@ class FeatureEngineer:
             self._feature_cache[cache_key] = result
 
         return result
->>>>+++ REPLACE
-
-
 
     def fit_scaler_and_selector(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -305,6 +303,7 @@ class FeatureEngineer:
             result,
             fix_issues=True,  # Auto-fix issues in training
             raise_on_error=False,  # Don't fail, just warn
+            drop_low_variance=False,  # Don't drop low variance, let scaler handle it
         )
 
         # Remove highly correlated features (learn which to remove from train)
@@ -491,7 +490,8 @@ class FeatureEngineer:
         # Check for low variance features (potentially useless)
         if len(df) > 1:
             variance = df[numeric_cols].var()
-            low_var_threshold = 1e-6
+            # Reduced threshold to support 5m/1m return features which are naturally small
+            low_var_threshold = 1e-12
             low_var_cols = variance[variance < low_var_threshold].index.tolist()
 
             if low_var_cols:
@@ -500,6 +500,9 @@ class FeatureEngineer:
                     f"Found {len(low_var_cols)} low-variance features "
                     f"(var < {low_var_threshold}): {low_var_cols[:5]}..."
                 )
+                # Log the variance of these columns to understand why they are low
+                for col in low_var_cols[:5]:
+                    logger.debug(f"Low variance col {col}: {variance[col]}")
 
                 if fix_issues and drop_low_variance:
                     # Drop low variance columns

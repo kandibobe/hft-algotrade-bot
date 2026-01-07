@@ -9,103 +9,100 @@
  |_____/ \__\___|\__,_|_|\__,_|_|\__,_|\__,_|\__|
 ```
 
-**An open-source framework for building, testing, and deploying institutional-grade crypto trading strategies.**
+**Institutional-Grade Mid-Frequency Trading (MFT) System**
 
 ---
 
 <p align="center">
-  <a href="https://github.com/kandibobe/mft-algotrade-bot/actions/workflows/ci.yml">
-    <img src="https://github.com/kandibobe/mft-algotrade-bot/actions/workflows/ci.yml/badge.svg" alt="CI Status">
-  </a>
-  <a href="https://github.com/kandibobe/mft-algotrade-bot/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
-  </a>
-  <a href="https://github.com/psf/black">
-    <img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Code Style: Black">
-  </a>
-  <a href="#">
-    <img src="https://img.shields.io/badge/Tests-Passing-brightgreen" alt="Tests Passing">
-  </a>
-  <a href="#">
-    <img src="https://img.shields.io/badge/Coverage-90%25+-brightgreen" alt="Code Coverage">
-  </a>
+  <img src="https://img.shields.io/badge/Architecture-Hybrid%20Async-blueviolet" alt="Architecture">
+  <img src="https://img.shields.io/badge/Risk-Institutional-red" alt="Risk Management">
+  <img src="https://img.shields.io/badge/Execution-MFT-blue" alt="Execution">
 </p>
 
 </div>
 
 ---
 
-### **Why Stoic Citadel?**
+### **Overview**
 
-Stoic Citadel is not just another trading bot. It's a comprehensive framework built on a philosophy of robustness and data-driven decisions. Here’s how it compares to standard trading bots:
+Stoic Citadel is a next-generation crypto trading framework designed to bridge the gap between traditional Algo-Trading bots (like Freqtrade) and HFT/MFT institutional systems.
 
-| Feature Area | Standard Bots | 🛡️ Stoic Citadel |
-| :--- | :--- | :--- |
-| **🧠 Intelligence** | Simple RSI/MACD logic | Meta-learning ensembles, triple-barrier labeling |
-| **🛡️ Risk Management** | Basic stop-loss | Hierarchical Risk Parity, Circuit Breakers |
-| **⚡ Performance** | Blocking, high-latency | Asynchronous, low-latency execution core |
+It utilizes a **Hybrid Architecture**:
+1.  **Macro Layer (Strategy):** Freqtrade-based synchronous logic for trend analysis and regime detection.
+2.  **Micro Layer (Execution):** AsyncIO-based WebSocket Aggregator and Smart Order Executor for low-latency market interaction.
 
----
+### **Key Features**
 
-### **Visual Showcase**
-
-<details>
-<summary><strong>Click to see the system in action (placeholder images)</strong></summary>
-
-| Grafana Dashboard | Telegram Bot | Backtest Results |
-| :---: | :---: | :---: |
-| ![Grafana Placeholder](https://via.placeholder.com/400x250.png?text=Grafana+Dashboard) | ![Telegram Placeholder](https://via.placeholder.com/400x250.png?text=Telegram+Bot+GIF) | ![Backtest Placeholder](https://via.placeholder.com/400x250.png?text=Equity+Curve) |
-| Monitor real-time performance and system health. | Control and monitor the bot from anywhere. | Analyze strategy performance with detailed backtests. |
-
-</details>
+| Feature | Description |
+| :--- | :--- |
+| **🚀 Hybrid Connector** | Seamless bridge between Strategy loop and real-time Websocket data. |
+| **🧠 Feature Store** | Production-grade Feature Store (Feast/Redis) for online/offline consistency. |
+| **🛡️ Unified Risk Engine** | Centralized `RiskManager` implementing Circuit Breakers, Drawdown protection, and HRP sizing. |
+| **⚡ Smart Execution** | `ChaseLimit`, `Pegged`, and `Iceberg` orders to minimize slippage and impact. |
+| **📊 Regime Detection** | Dynamic strategy adaptation based on Hurst Exponent and Volatility Z-Score. |
 
 ---
 
-### **Quick Start**
+### **Architecture**
 
-Getting started is as easy as 1-2-3. For detailed instructions, see the [**full documentation**](https://kandibobe.github.io/mft-algotrade-bot/).
-
-| 1️⃣ Clone the Repository | 2️⃣ Configure Your Bot | 3️⃣ Launch with Docker |
-| :--- | :--- | :--- |
-| `git clone https://github.com/kandibobe/mft-algotrade-bot.git` <br> `cd mft-algotrade-bot` | Create `user_data/config.json` and add your API keys. | `docker-compose up -d` |
-
-<details>
-<summary><strong>Click for detailed configuration instructions</strong></summary>
-
-1.  Copy `user_data/config.json.example` to `user_data/config.json`.
-2.  Edit the file to include your exchange API keys (`key`, `secret`).
-3.  Set your Telegram API credentials (`token`, `chat_id`).
-4.  Choose your desired strategy.
-
-</details>
-
----
-
-### **Repository Map**
-
-```
-├── .github/        # GitHub Actions workflows and templates
-├── docs/           # The source for the documentation website
-├── src/            # Core source code
-│   ├── ml/         # Machine learning pipeline
-│   ├── risk/       # Risk management and safety
-│   └── strategies/ # Strategy logic and connectors
-├── tests/          # Unit, integration, and e2e tests
-└── user_data/      # Your data: strategies, configs, logs, models
+```mermaid
+graph TD
+    A[Market Data (WS)] -->|Async| B(Data Aggregator)
+    B -->|Real-time Ticker| C{Smart Executor}
+    B -->|Metrics| D[Hybrid Connector]
+    
+    E[Freqtrade Strategy] -->|Signal| D
+    D -->|Order Request| C
+    
+    C -->|Order Placement| F[Exchange API]
+    
+    subgraph Risk Gate
+    G[Risk Manager] -->|Check| C
+    G -->|Check| D
+    end
 ```
 
 ---
 
-### **Community & Contributing**
+### **Getting Started**
 
-This project is built and maintained by the community. We welcome all contributions!
+#### 1. Configuration
+The system uses a **Unified Configuration** system (`src/config/manager.py`).
+Copy `.env.example` to `.env` and set your credentials:
 
--   **Found a bug?** [Open a bug report](https://github.com/kandibobe/mft-algotrade-bot/issues/new?template=bug_report.md).
--   **Have a feature idea?** [Suggest a new feature](https://github.com/kandibobe/mft-algotrade-bot/issues/new?template=feature_request.md).
--   **Want to contribute?** Read our [**Contributing Guide**](CONTRIBUTING.md).
+```bash
+cp .env.example .env
+# Edit .env with your API Keys and Settings
+```
 
-### **Sponsor This Project**
+#### 2. Deployment
+Run with Docker Compose (includes Redis for Feature Store):
 
-[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-%E2%9D%A4-%23db61a2.svg)](https://github.com/sponsors/kandibobe)
+```bash
+docker-compose up -d --build
+```
 
-If you find Stoic Citadel valuable, please consider supporting its development to help us continue to build and improve it.
+#### 3. Development
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+pre-commit install
+```
+
+---
+
+### **Project Structure**
+
+*   `src/strategies/`: Trading strategies and Hybrid Connector.
+*   `src/order_manager/`: Async Smart Order Execution logic.
+*   `src/websocket/`: Real-time data aggregation.
+*   `src/risk/`: Centralized risk management.
+*   `src/ml/`: Machine Learning pipeline and Feature Store.
+*   `src/config/`: Unified configuration system.
+
+---
+
+### **License**
+
+MIT License. See [LICENSE](LICENSE) for details.

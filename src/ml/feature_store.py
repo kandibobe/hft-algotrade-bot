@@ -992,6 +992,13 @@ def create_feature_store(
     Returns:
         TradingFeatureStore instance
     """
+    # Try to load config defaults if not provided
+    if not kwargs.get("config_path"):
+        # In a real scenario, we might want to get this from ConfigurationManager
+        # But FeatureStore might be used independently.
+        # Let's keep "feature_repo" as safe default but allow override.
+        pass
+
     if use_redis:
         logger.info("Creating RedisFeatureStore")
         return RedisFeatureStore(**kwargs)

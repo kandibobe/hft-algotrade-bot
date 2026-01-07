@@ -35,7 +35,8 @@ class TripleBarrierConfig:
     max_holding_period: int = 24  # 48 bars = 4 hours for 5m timeframe
 
     # Minimum price movement to consider (filters noise)
-    min_movement: float = 0.001
+    # Reduced from 0.001 to 0.0005 to capture smaller MFT scalps
+    min_movement: float = 0.0005
 
     # Include "hold" class (no significant movement)
     include_hold_class: bool = True
@@ -132,19 +133,17 @@ class TripleBarrierLabeler:
 
     def _validate_data(self, df: pd.DataFrame) -> None:
         """
-        Validate data to prevent future data leakage.
+        Validate and CLEAN data to prevent future data leakage and labeling errors.
 
         Checks:
         - Data is sorted chronologically
         - No duplicate timestamps
         - Required OHLCV columns present
         - No NaN values in price data
+        - Corrects OHLC relationships (Aggressive Cleaning)
 
         Args:
             df: DataFrame to validate
-
-        Raises:
-            ValueError: If validation fails
         """
         # Check required columns
         required_cols = ["open", "high", "low", "close", "volume"]
@@ -246,11 +245,17 @@ class TripleBarrierLabeler:
         if invalid_ohlc.any():
             invalid_count = invalid_ohlc.sum()
             logger.warning(
-                f"Found {invalid_count} rows with invalid OHLC relationships "
-                f"(e.g., high < low, close > high). Check your data quality."
+                f"Found {invalid_count} rows with invalid OHLC relationships. "
+                "Applying aggressive correction..."
             )
+            # Aggressive correction to ensure mathematical consistency
+            df.loc[df["high"] < df["low"], "high"] = df["low"]
+            df.loc[df["open"] > df["high"], "open"] = df["high"]
+            df.loc[df["open"] < df["low"], "open"] = df["low"]
+            df.loc[df["close"] > df["high"], "close"] = df["high"]
+            df.loc[df["close"] < df["low"], "close"] = df["low"]
 
-        logger.debug("✅ Data validation passed - safe for labeling")
+        logger.debug("✅ Data validation and cleaning passed - safe for labeling")
 
     def _get_barrier_label(
         self,

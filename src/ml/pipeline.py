@@ -52,7 +52,9 @@ class MLTrainingPipeline:
             logger.info("Initializing Feature Store...")
             try:
                 self.feature_store = create_feature_store(
-                    use_redis=self.config.feature_store.use_redis
+                    use_redis=self.config.feature_store.use_redis,
+                    redis_url=self.config.feature_store.redis_url,
+                    config_path=self.config.feature_store.config_path
                 )
                 self.feature_store.initialize()
             except Exception as e:

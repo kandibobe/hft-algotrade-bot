@@ -176,8 +176,8 @@ def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int
     tr2 = (high - prev_close).abs()  # High - Previous close
     tr3 = (low - prev_close).abs()  # Low - Previous close
 
-    # True Range is max of all three
-    true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    # True Range is max of all three (Optimized with numpy)
+    true_range = np.maximum(tr1, np.maximum(tr2, tr3))
 
     # ATR is smoothed TR (Wilder's smoothing)
     atr = true_range.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
@@ -451,17 +451,30 @@ def calculate_all_indicators(
     # CRITICAL: Sanitize all new columns
     # We only sanitize columns that were added
     new_cols = [c for c in result.columns if c not in df.columns]
-    for col in new_cols:
-        # 1. Replace Inf with NaN
-        result[col] = result[col].replace([np.inf, -np.inf], np.nan)
-        # 2. Fill NaN with appropriate defaults
-        if "rsi" in col or "stoch" in col:
-            result[col] = result[col].fillna(50)
-        elif "returns" in col or "diff" in col or "macd" in col:
-            result[col] = result[col].fillna(0)
-        else:
-            # For most indicators, forward fill is safest, then backward fill
-            result[col] = result[col].ffill().bfill().fillna(0)
+    
+    if new_cols:
+        # Optimized vectorized sanitization
+        # 1. Replace Inf with NaN globally for new columns
+        # Note: direct assignment is faster than replace on entire DF subset sometimes, 
+        # but replace is robust.
+        result[new_cols] = result[new_cols].replace([np.inf, -np.inf], np.nan)
+        
+        # 2. Categorize columns for bulk filling
+        rsi_cols = [c for c in new_cols if "rsi" in c or "stoch" in c]
+        zero_cols = [c for c in new_cols if "returns" in c or "diff" in c or "macd" in c]
+        # Everything else uses ffill/bfill
+        other_cols = [c for c in new_cols if c not in rsi_cols and c not in zero_cols]
+        
+        # 3. Apply fills in bulk
+        if rsi_cols:
+            result[rsi_cols] = result[rsi_cols].fillna(50)
+            
+        if zero_cols:
+            result[zero_cols] = result[zero_cols].fillna(0)
+            
+        if other_cols:
+            # ffill then bfill then 0
+            result[other_cols] = result[other_cols].ffill().bfill().fillna(0)
 
     logger.info(f"Calculated and sanitized {len(result.columns) - len(df.columns)} indicators")
 

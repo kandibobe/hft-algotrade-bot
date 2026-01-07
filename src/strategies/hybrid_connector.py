@@ -30,7 +30,11 @@ class HybridConnectorMixin:
     _cache_lock = threading.Lock()
 
     def initialize_hybrid_connector(
-        self, pairs: list[str], exchange_name: str = "binance", shadow_mode: bool = False
+        self, 
+        pairs: list[str], 
+        exchange_name: str | None = None, 
+        shadow_mode: bool = False,
+        risk_manager: "RiskManager | None" = None
     ):
         """
         Start the Websocket Aggregator in a background thread.
@@ -53,7 +57,6 @@ class HybridConnectorMixin:
         # Initialize Executor with config
         from src.config.manager import ConfigurationManager
 
-        dry_run = True  # Default safe
         try:
             config = ConfigurationManager.get_config()
             exchange_config = {
@@ -62,24 +65,29 @@ class HybridConnectorMixin:
                 "secret": config.exchange.api_secret,
             }
             dry_run = config.dry_run
-        except Exception:
-            logger.warning("Could not load exchange config for SmartExecutor, execution disabled.")
-            exchange_config = None
+            
+            # Use exchange name from config if not provided
+            target_exchange = exchange_name or config.exchange.name
+            
+        except Exception as e:
+            logger.critical(f"Failed to load configuration for Hybrid Connector: {e}")
+            raise
 
         self._executor = SmartOrderExecutor(
             aggregator=self._aggregator,
             exchange_config=exchange_config,
             dry_run=dry_run,
             shadow_mode=shadow_mode,
+            risk_manager=risk_manager
         )
 
         # Add exchange
         # Map string name to Enum
         try:
-            exch_enum = Exchange(exchange_name.lower())
+            exch_enum = Exchange(target_exchange.lower())
             self._aggregator.add_exchange(exch_enum, pairs)
         except ValueError:
-            logger.error(f"Exchange {exchange_name} not supported by Aggregator.")
+            logger.error(f"Exchange {target_exchange} not supported by Aggregator.")
             return
 
         # Register callback to update local cache
