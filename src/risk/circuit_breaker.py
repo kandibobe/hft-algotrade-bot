@@ -225,11 +225,20 @@ class CircuitBreaker:
         logger.info(f"✅ {msg}")
         get_notifier().send_notification(msg, level="info")
 
+    def get_position_multiplier(self) -> float:
+        if self.state == CircuitState.CLOSED:
+            return 1.0
+        elif self.state == CircuitState.HALF_OPEN:
+            return self.config.recovery_trade_size_pct
+        else:
+            return 0.0
+
     def get_status(self) -> dict:
         return {
             "state": self.state.value,
             "trip_reason": self.trip_reason.value if self.trip_reason else None,
             "can_trade": self.can_trade(),
+            "position_multiplier": self.get_position_multiplier(),
         }
 
     def _get_adaptive_volatility_threshold(self, current_volatility: float) -> float:
