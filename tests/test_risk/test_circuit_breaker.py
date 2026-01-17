@@ -109,8 +109,8 @@ class TestCircuitBreaker:
         breaker.can_trade()  # Transition to half-open
         
         # Successful recovery trades
-        breaker.attempt_recovery(trade_successful=True)
-        breaker.attempt_recovery(trade_successful=True)
+        breaker.record_trade({"symbol": "BTC/USDT"}, 0.01)
+        breaker.record_trade({"symbol": "BTC/USDT"}, 0.01)
         
         assert breaker.state == CircuitState.CLOSED
     
@@ -123,7 +123,7 @@ class TestCircuitBreaker:
         assert breaker.state == CircuitState.HALF_OPEN
         
         # Failed recovery trade
-        breaker.attempt_recovery(trade_successful=False)
+        breaker.record_trade({"symbol": "BTC/USDT"}, -0.01)
         
         assert breaker.state == CircuitState.OPEN
         assert breaker.recovery_trades == 0

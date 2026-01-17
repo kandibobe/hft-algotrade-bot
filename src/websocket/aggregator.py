@@ -161,6 +161,12 @@ class DataAggregator:
         """Process incoming ticker data."""
         symbol = self._normalize_symbol(ticker.symbol)
         if self._is_data_valid(ticker):
+            # Check for extreme outliers against current state
+            if exchange_data := self._tickers.get(symbol, {}).get(ticker.exchange):
+                if abs(ticker.last - exchange_data.last) / exchange_data.last > 0.4:  # 40% jump
+                    logger.warning(f"Rejected outlier ticker for {symbol} on {ticker.exchange}: {ticker.last} vs {exchange_data.last}")
+                    return
+            
             self._tickers[symbol][ticker.exchange] = ticker
 
     async def _process_trade(self, trade: TradeData):
@@ -223,7 +229,40 @@ class DataAggregator:
             if obs:
                 avg_imbalance = sum(ob.imbalance for ob in obs.values()) / len(obs)
 
+        # Outlier Detection (Median-based)
+        import statistics
+        reliability_issues = []
+        
+        valid_bids = []
+        valid_asks = []
+        
+        all_bids = [t.bid for t in exchange_tickers.values() if t.bid > 0]
+        all_asks = [t.ask for t in exchange_tickers.values() if t.ask > 0]
+        
+        if len(all_bids) >= 3:
+            median_bid = statistics.median(all_bids)
+            valid_bids = [b for b in all_bids if abs(b - median_bid) / median_bid < 0.05]
+            if len(valid_bids) < len(all_bids):
+                reliability_issues.append("Outlier bids detected")
+        else:
+            valid_bids = all_bids
+            
+        if len(all_asks) >= 3:
+            median_ask = statistics.median(all_asks)
+            valid_asks = [a for a in all_asks if abs(a - median_ask) / median_ask < 0.05]
+            if len(valid_asks) < len(all_asks):
+                reliability_issues.append("Outlier asks detected")
+        else:
+            valid_asks = all_asks
+
+        # Aggregation loop
         for exchange, ticker in exchange_tickers.items():
+            # Skip if filtered out
+            if ticker.bid not in valid_bids and len(all_bids) >= 3:
+                continue
+            if ticker.ask not in valid_asks and len(all_asks) >= 3:
+                continue
+
             if ticker.bid > best_bid:
                 best_bid = ticker.bid
                 best_bid_exchange = exchange
@@ -234,12 +273,25 @@ class DataAggregator:
             weighted_price += ticker.last * ticker.volume_24h
 
         vwap = weighted_price / total_volume if total_volume > 0 else 0
-        spread = best_ask - best_bid
-        spread_pct = (spread / best_bid * 100) if best_bid > 0 else 0
+        
+        if best_bid == 0 or best_ask == float("inf"):
+            # Fallback if everything was filtered or empty
+            spread = 0.0
+            spread_pct = 0.0
+            is_reliable = False
+            reliability_issues.append("Insufficient valid data")
+        else:
+            spread = best_ask - best_bid
+            spread_pct = (spread / best_bid * 100) if best_bid > 0 else 0
+            
         now = time.time()
         
         latest_update = max(t.timestamp for t in exchange_tickers.values()) if exchange_tickers else 0
-        is_reliable = (now - latest_update < 5.0)
+        if now - latest_update >= 5.0:
+            reliability_issues.append("Stale data")
+            
+        is_reliable = len(reliability_issues) == 0
+        reliability_reason = "; ".join(reliability_issues) if reliability_issues else ""
 
         return AggregatedTicker(
             symbol=symbol,
@@ -254,7 +306,8 @@ class DataAggregator:
             total_volume_24h=total_volume,
             timestamp=now,
             imbalance=avg_imbalance,
-            is_reliable=is_reliable
+            is_reliable=is_reliable,
+            reliability_reason=reliability_reason
         )
 
     def _is_data_valid(self, ticker: TickerData) -> bool:

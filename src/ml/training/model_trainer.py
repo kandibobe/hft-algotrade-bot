@@ -95,6 +95,7 @@ class ModelTrainer:
         y: pd.Series,
         X_val: pd.DataFrame | None = None,
         y_val: pd.Series | None = None,
+        hyperparams: dict | None = None,
     ) -> tuple[Any, dict[str, float], list[str]]:
         """
         Train model.
@@ -104,6 +105,7 @@ class ModelTrainer:
             y: Training labels
             X_val: Validation features (optional)
             y_val: Validation labels (optional)
+            hyperparams: Pre-computed hyperparameters to use
 
         Returns:
             Tuple containing (model, metrics, feature_names)
@@ -129,7 +131,11 @@ class ModelTrainer:
         final_feature_names = X.columns.tolist()
 
         # Hyperparameter optimization or default training
-        if self.config.optimize_hyperparams:
+        if hyperparams:
+            logger.info(f"Using pre-computed hyperparameters: {hyperparams}")
+            self.model = self._create_model(**hyperparams)
+            self.model.fit(X, y)
+        elif self.config.optimize_hyperparams:
             self.model, best_params = self._optimize_hyperparams(X, y, X_val, y_val)
             logger.info(f"Best hyperparameters: {best_params}")
         else:

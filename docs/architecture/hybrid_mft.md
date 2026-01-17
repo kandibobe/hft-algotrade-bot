@@ -1,81 +1,63 @@
 # Hybrid MFT Architecture
 
-## Overview
+Stoic Citadel is built on a hybrid architecture that combines the high-level strategic capabilities of Freqtrade with a low-latency, asynchronous micro-execution layer.
 
-Stoic Citadel employs a Hybrid Architecture that combines the stability of Freqtrade (Macro Layer) with the speed of custom AsyncIO execution (Micro Layer). This design allows for "Mid-Frequency Trading" (MFT) capabilities, enabling reactions to market changes within milliseconds while maintaining robust strategy logic.
+## Architectural Overview
 
-## Layers
+The system is divided into two primary layers:
 
-### 1. Macro Layer (Strategy)
-*   **Technology:** Python, Synchronous, Freqtrade
-*   **Responsibility:**
-    *   Trend Analysis (EMA, MACD, etc.)
-    *   Regime Detection (Hurst, Volatility Z-Score)
-    *   Signal Generation (Buy/Sell/Hold)
-*   **Update Frequency:** Candle-based (e.g., every 5 minutes)
+1.  **Macro Layer (Strategy/Sync):** Powered by Python and Freqtrade. This layer handles data processing, technical analysis, and machine learning signal generation. It operates in a synchronous, vectorized manner.
+2.  **Micro Layer (Execution/Async):** Built with Python's `asyncio`. This layer handles real-time data aggregation via WebSockets and executes orders with high precision using the `SmartOrderExecutor`.
 
-### 2. Micro Layer (Execution)
-*   **Technology:** Python, Asynchronous (`asyncio`)
-*   **Responsibility:**
-    *   Real-time Orderbook Analysis
-    *   Smart Order Execution (`ChaseLimit`, `Pegged`)
-    *   Arbitrage Monitoring
-*   **Update Frequency:** Tick-based (Real-time Websocket)
+## Component Interaction
 
-## Data Flow
+The interaction between these layers is strictly managed by the `HybridConnector`.
 
 ```mermaid
-sequenceDiagram
-    participant Exchange as Exchange (Binance)
-    participant WS as DataAggregator
-    participant Strat as Strategy (Macro)
-    participant Connector as HybridConnector
-    participant Exec as SmartExecutor
-
-    Exchange->>WS: Websocket Stream (Ticker/Trade)
-    WS->>WS: Aggregate & Normalize
-    WS->>Connector: Update Shared State (Best Bid/Ask)
-    
-    loop Every 5m Candle
-        Strat->>Strat: Calculate Indicators
-        Strat->>Strat: Detect Regime
-        Strat->>Connector: check_market_safety()
-        Connector-->>Strat: Safe/Unsafe (Spread Check)
-        
-        alt Signal == BUY
-            Strat->>Connector: confirm_trade_entry()
-            Connector->>Exec: Submit Smart Order
-        end
+graph TD
+    subgraph Macro Layer (Sync)
+        Strategy[Freqtrade Strategy]
+        ML[ML Pipeline]
+        Strategy --> ML
     end
-    
-    Exec->>Exchange: Place Limit Order
-    Exchange-->>WS: Order Update
-    WS-->>Exec: Adjust Price (Chase)
+
+    subgraph Bridge
+        Connector[HybridConnector]
+    end
+
+    subgraph Micro Layer (Async)
+        Aggregator[Aggregator]
+        RiskManager[Risk Manager]
+        Executor[SmartOrderExecutor]
+        Exchange[Exchange WS/API]
+        
+        Aggregator --> RiskManager
+        RiskManager --> Executor
+        Executor --> Exchange
+    end
+
+    ML -. Signals .-> Connector
+    Connector --> Aggregator
+    Aggregator -. Real-time Data .-> Connector
+    Connector --> Strategy
 ```
 
 ## Key Components
 
-### HybridConnector
-The bridge between the synchronous Freqtrade loop and the asynchronous world.
-*   Initializes `DataAggregator` and `SmartOrderExecutor` in a background thread.
-*   Exposes `get_realtime_metrics()` to the strategy.
+### 1. HybridConnector
+The `HybridConnector` acts as the bridge. It translates Freqtrade-compatible signals into micro-layer execution tasks and provides the macro layer with real-time micro-data (e.g., orderbook depth, recent trades).
 
-### DataAggregator
-*   Connects to multiple exchanges via WebSocket.
-*   Calculates real-time metrics like Spread %, Orderbook Imbalance, and VWAP.
-*   Detects arbitrage opportunities.
+### 2. Aggregator (`src/websocket/aggregator.py`)
+A non-blocking WebSocket client that aggregates multiple data streams from various exchanges into a unified internal format.
 
-### SmartOrderExecutor
-*   Manages order lifecycle independently of the strategy loop.
-*   **ChaseLimitOrder:** Dynamically updates limit price to stay at the top of the book.
-*   **PeggedOrder:** Maintains a fixed distance from Best Bid/Ask.
-*   **IcebergOrder:** Splits large orders to minimize market impact.
+### 3. SmartOrderExecutor (`src/order_manager/smart_order_executor.py`)
+Responsible for executing orders using sophisticated algorithms like `ChaseLimit`, ensuring minimal slippage and high fill rates.
 
-## Configuration
+### 4. Risk Manager (`src/risk/risk_manager.py`)
+A mandatory gatekeeper for every transaction. It enforces circuit breakers, position sizing limits, and overall portfolio exposure.
 
-The system is configured via `src/config/manager.py`, which loads from `config.json` or environment variables.
+## Why this Architecture?
 
-To enable MFT features:
-1.  Set `dry_run: false` (Live Mode).
-2.  Ensure API Keys are set in `.env`.
-3.  The system automatically initializes the Hybrid layer if running in Live or Dry-Run mode (disabled in Backtest).
+- **Precision:** Standard Freqtrade execution is often too slow for MFT. Our micro-layer handles execution in milliseconds.
+- **Safety:** The multi-layered risk management system ensures that even if a strategy fails, the capital is protected.
+- **Scalability:** The decoupled nature allows for independent scaling and upgrading of the strategy or execution logic.

@@ -245,8 +245,8 @@ async def test_multi_exchange_risk_aggregation(strategy):
     
     metrics = rm.get_metrics()
     # BTC value = 5000, ETH value = 3000. Total = 8000
-    assert metrics.total_exposure == 8000.0
-    assert metrics.open_positions == 2
+    assert metrics['total_exposure'] == 8000.0
+    assert metrics['open_positions'] == 2
     
     # Evaluate a new trade. We set max_risk_pct high to ensure it returns sizing_details 
     # instead of just rejection if portfolio exposure is hit.

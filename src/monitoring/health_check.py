@@ -1,3 +1,4 @@
+
 """
 Stoic Citadel - Health Check System
 ====================================
@@ -64,6 +65,12 @@ try:
 except ImportError:
     ML_INFERENCE_AVAILABLE = False
 
+try:
+    from src.websocket.aggregator import DataAggregator
+    WEBSOCKET_AGGREGATOR_AVAILABLE = True
+except ImportError:
+    WEBSOCKET_AGGREGATOR_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -90,6 +97,7 @@ class HealthCheck:
         self.bot = bot
         self.checks = {
             "exchange_connection": self.check_exchange,
+            "websocket_connection": self.check_websocket,
             "database": self.check_database,
             "ml_model": self.check_ml_model,
             "circuit_breaker": self.check_circuit_breaker,
@@ -163,6 +171,16 @@ class HealthCheck:
         except Exception as e:
             logger.warning(f"Failed to initialize Redis client: {e}")
 
+        # WebSocket Aggregator
+        self.websocket_aggregator = None
+        if WEBSOCKET_AGGREGATOR_AVAILABLE and hasattr(self.bot, "websocket_aggregator"):
+            self.websocket_aggregator = self.bot.websocket_aggregator
+        elif WEBSOCKET_AGGREGATOR_AVAILABLE:
+            try:
+                self.websocket_aggregator = DataAggregator()
+            except Exception as e:
+                logger.warning(f"Failed to initialize WebSocket Aggregator: {e}")
+
     async def check_exchange(self) -> dict[str, Any]:
         """
         Check if exchange API is reachable and responsive.
@@ -228,6 +246,51 @@ class HealthCheck:
         except Exception as e:
             logger.error(f"Exchange health check failed: {e}")
             return {"status": "unhealthy", "details": f"Exchange error: {e!s}", "healthy": False}
+
+    async def check_websocket(self) -> dict[str, Any]:
+        """
+        Check WebSocket connection status.
+        """
+        if not self.websocket_aggregator:
+            return {
+                "status": "unknown",
+                "details": "WebSocket Aggregator not available",
+                "healthy": True, # Not critical if not available
+            }
+
+        try:
+            if self.websocket_aggregator._running:
+                # Check last message timestamp if available
+                last_msg_time = 0
+                if hasattr(self.websocket_aggregator, '_tickers'):
+                    for symbol_tickers in self.websocket_aggregator._tickers.values():
+                        for ticker in symbol_tickers.values():
+                            if ticker.timestamp > last_msg_time:
+                                last_msg_time = ticker.timestamp
+                
+                if last_msg_time > 0:
+                    time_since_last_msg = datetime.utcnow().timestamp() - last_msg_time
+                    if time_since_last_msg > 60:
+                        return {
+                            "status": "unhealthy",
+                            "details": f"No WebSocket message received for {time_since_last_msg:.2f} seconds.",
+                            "healthy": False,
+                        }
+
+                return {
+                    "status": "healthy",
+                    "details": "WebSocket Aggregator is running.",
+                    "healthy": True,
+                }
+            else:
+                return {
+                    "status": "unhealthy",
+                    "details": "WebSocket Aggregator is not running.",
+                    "healthy": False,
+                }
+        except Exception as e:
+            logger.error(f"WebSocket health check failed: {e}")
+            return {"status": "unhealthy", "details": f"WebSocket error: {e!s}", "healthy": False}
 
     async def check_database(self) -> dict[str, Any]:
         """

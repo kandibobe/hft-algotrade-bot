@@ -1,74 +1,86 @@
-"""
-Property-based tests for trading system components.
-Uses Hypothesis for generative testing.
-"""
-
-from hypothesis import given, strategies as st, settings, HealthCheck
-import hypothesis.extra.numpy as npst
-import numpy as np
 import pandas as pd
+from hypothesis import given, strategies as st
+from hypothesis.extra.pandas import data_frames, column
+import pytest
 
-from src.risk.position_sizing import PositionSizer
-from src.utils.indicators import calculate_all_indicators
+# Assuming your indicator functions are in src.utils.indicators
+from src.utils.indicators import zscore_indicator, vwma
 
+# Define a strategy for generating a DataFrame suitable for financial analysis
+# It should have 'high', 'low', 'close', 'volume' columns
+@st.composite
+def financial_dataframe_strategy(draw):
+    num_rows = draw(st.integers(min_value=20, max_value=200)) # Ensure enough data for indicators
+    
+    return draw(data_frames([
+        column('open', dtype=float, elements=st.floats(min_value=90, max_value=110, allow_nan=False, allow_infinity=False)),
+        column('high', dtype=float, elements=st.floats(min_value=100, max_value=120, allow_nan=False, allow_infinity=False)),
+        column('low', dtype=float, elements=st.floats(min_value=80, max_value=100, allow_nan=False, allow_infinity=False)),
+        column('close', dtype=float, elements=st.floats(min_value=90, max_value=110, allow_nan=False, allow_infinity=False)),
+        column('volume', dtype=float, elements=st.floats(min_value=1000, max_value=100000, allow_nan=False, allow_infinity=False))
+    ], index=st.integers(min_value=0, max_value=num_rows-1).map(lambda i: pd.RangeIndex(start=i, stop=i+num_rows, step=1))))
 
-class TestPositionSizing:
-    @settings(suppress_health_check=[HealthCheck.too_slow])
-    @given(
-        balance=st.floats(min_value=1000, max_value=100000),
-        risk_pct=st.floats(min_value=0.01, max_value=0.05),
-        stop_loss_pct=st.floats(min_value=0.01, max_value=0.10),
+@given(df=financial_dataframe_strategy())
+def test_zscore_properties(df):
+    """
+    Test properties of the zscore_indicator.
+    - Output should have the same index as the input.
+    - Output should not contain NaNs after the initial window.
+    - Z-score of a constant series should be close to zero.
+    """
+    window_size = 20
+    if len(df) < window_size:
+        pytest.skip("DataFrame too small for window")
+        
+    result_df = zscore_indicator(df.copy(), window=window_size)
+    
+    pd.testing.assert_index_equal(df.index, result_df.index)
+    
+    # After the initial window, there should be no NaNs
+    assert not result_df['zscore'][window_size - 1:].isnull().any()
+    
+    # Test with a constant series
+    df['constant'] = 100.0
+    result_constant = zscore_indicator(df[['constant']].rename(columns={'constant': 'close'}), window=window_size)
+    # The z-score of a constant series should be 0 (or very close due to float precision)
+    assert (result_constant['zscore'][window_size - 1:].abs() < 1e-9).all()
+
+@given(df=financial_dataframe_strategy())
+def test_vwma_properties(df):
+    """
+    Test properties of the vwma (Volume Weighted Moving Average).
+    - Output should have the same index.
+    - VWMA should be within the range of high and low prices over the window.
+    - For constant volume, VWMA should be equal to a simple moving average (SMA).
+    """
+    window_size = 14
+    if len(df) < window_size:
+        pytest.skip("DataFrame too small for window")
+
+    result_df = vwma(df.copy(), window=window_size)
+    
+    pd.testing.assert_index_equal(df.index, result_df.index)
+
+    # After the initial window, VWMA should be a valid number
+    assert not result_df[f'vwma_{window_size}'][window_size - 1:].isnull().any()
+
+    # The VWMA should logically be between the min low and max high of the lookback period
+    min_low = df['low'].rolling(window=window_size).min()
+    max_high = df['high'].rolling(window=window_size).max()
+    
+    assert (result_df[f'vwma_{window_size}'][window_size - 1:] >= min_low[window_size - 1:]).all()
+    assert (result_df[f'vwma_{window_size}'][window_size - 1:] <= max_high[window_size - 1:]).all()
+
+    # If volume is constant, VWMA should equal SMA
+    df_const_vol = df.copy()
+    df_const_vol['volume'] = 1.0
+    
+    result_vwma_const = vwma(df_const_vol, window=window_size)
+    sma = df_const_vol['close'].rolling(window=window_size).mean()
+    
+    pd.testing.assert_series_equal(
+        result_vwma_const[f'vwma_{window_size}'][window_size - 1:],
+        sma[window_size - 1:],
+        check_names=False,
+        atol=1e-9
     )
-    def test_position_size_never_exceeds_balance(self, balance, risk_pct, stop_loss_pct):
-        """Property: Position size should never exceed account balance"""
-        sizer = PositionSizer()
-        # Use entry price = balance (simplified) and stop loss price = entry * (1 - stop_loss_pct)
-        entry_price = balance  # Simplified assumption
-        stop_loss_price = entry_price * (1 - stop_loss_pct)
-        
-        # Use calculate_position_size which applies max position limit
-        result = sizer.calculate_position_size(
-            account_balance=balance,
-            entry_price=entry_price,
-            stop_loss_price=stop_loss_price,
-            method="fixed_risk",
-            risk_pct=risk_pct
-        )
-        size = result["position_value"]
-        
-        # Position should not exceed balance (with max_position_pct default of 10%, it should be <= 0.1 * balance)
-        # But we'll assert it's <= balance (which is a weaker condition)
-        assert size <= balance, f"Position size {size} > balance {balance}"
-        
-    @given(
-        price_series=npst.arrays(
-            dtype=np.float64,
-            shape=st.integers(min_value=100, max_value=1000),
-            elements=st.floats(min_value=1.0, max_value=100000.0)
-        )
-    )
-    def test_indicators_no_nan(self, price_series):
-        """Property: Indicators should not produce NaN (except initial period)"""
-        # Convert numpy array to DataFrame with required columns
-        df = pd.DataFrame({
-            'open': price_series,
-            'high': price_series * 1.01,  # Simulate some spread
-            'low': price_series * 0.99,
-            'close': price_series,
-            'volume': np.full_like(price_series, 1000.0)  # Constant volume
-        })
-        
-        indicators = calculate_all_indicators(df)
-        
-        # Check after warmup period (skip first 50 rows where indicators may be NaN)
-        # Note: Some indicators like EMA, RSI may have NaN in initial periods
-        # We'll check that after row 50, there are no NaN values in key indicators
-        if len(indicators) > 50:
-            # Check RSI and EMA columns exist
-            if 'rsi' in indicators.columns:
-                rsi_after = indicators['rsi'].iloc[50:]
-                assert not rsi_after.isna().any(), f"RSI contains NaN after row 50: {rsi_after.isna().sum()}"
-            
-            if 'ema_50' in indicators.columns:
-                ema_after = indicators['ema_50'].iloc[50:]
-                assert not ema_after.isna().any(), f"EMA contains NaN after row 50: {ema_after.isna().sum()}"

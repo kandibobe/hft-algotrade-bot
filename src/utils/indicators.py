@@ -1,481 +1,116 @@
-"""
-Stoic Citadel - Technical Indicators Library
-=============================================
-
-Vectorized implementations of common technical indicators.
-All functions operate on pandas Series/DataFrames for efficiency.
-
-Usage:
-    from src.utils.indicators import calculate_rsi, calculate_macd
-
-    df['rsi'] = calculate_rsi(df['close'], period=14)
-    macd_data = calculate_macd(df['close'])
-    df['macd'] = macd_data['macd']
-"""
-
-import hashlib
-import logging
-import pickle
-from functools import lru_cache
-
-import numpy as np
 import pandas as pd
+import numpy as np
 
-logger = logging.getLogger(__name__)
-
-
-def _dataframe_hash(df):
+def zscore_indicator(df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
     """
-    Хэш DataFrame для кэширования.
-    Оптимизировано для скорости: использует форму и последние значения.
+    Calculate the Z-score of the close price.
     """
-    # Вместо пиклирования всего DF, используем форму и последние 5 строк
-    # Этого достаточно для большинства сценариев в трейдинге
-    hash_base = f"{df.shape}_{df.iloc[-5:].values.tobytes()}"
-    return hashlib.md5(hash_base.encode()).hexdigest()
+    df['zscore'] = (df['close'] - df['close'].rolling(window=window).mean()) / df['close'].rolling(window=window).std()
+    return df
 
-
-def calculate_ema(series: pd.Series, period: int = 20, adjust: bool = False) -> pd.Series:
+def vwma(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
     """
-    Calculate Exponential Moving Average.
-
-    Args:
-        series: Price series (typically close)
-        period: EMA period
-        adjust: Adjust for gaps (default False for speed)
-
-    Returns:
-        EMA series
+    Calculate the Volume Weighted Moving Average (VWMA).
     """
-    return series.ewm(span=period, adjust=adjust).mean()
-
-
-def calculate_sma(series: pd.Series, period: int = 20) -> pd.Series:
-    """
-    Calculate Simple Moving Average.
-
-    Args:
-        series: Price series
-        period: SMA period
-
-    Returns:
-        SMA series
-    """
-    return series.rolling(window=period).mean()
-
-
-def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    """
-    Calculate Relative Strength Index (RSI).
-
-    RSI is a momentum oscillator that measures the speed and change of price movements.
-    It oscillates between 0 and 100. Traditionally, RSI is considered overbought when above 70
-    and oversold when below 30.
-
-    Financial Logic:
-    - RSI > 70: Price has risen rapidly and may correct (Overbought).
-    - RSI < 30: Price has fallen rapidly and may rebound (Oversold).
-    - RSI crossing 50: Often indicates a trend reversal.
-
-    Implementation:
-    Vectorized implementation using exponential weighted moving average (Wilder's smoothing).
-
-    Args:
-        series: Price series (typically close prices).
-        period: Lookback period (standard is 14).
-
-    Returns:
-        pd.Series: RSI values on 0-100 scale.
-    """
-    # Calculate price changes
-    delta = series.diff()
-
-    # Separate gains and losses
-    gains = delta.where(delta > 0, 0.0)
-    losses = (-delta).where(delta < 0, 0.0)
-
-    # Calculate average gain/loss using EWM (Wilder's smoothing)
-    avg_gain = gains.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
-    avg_loss = losses.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
-
-    # Calculate RS and RSI
-    rs = avg_gain / avg_loss.replace(0, np.nan)  # Avoid division by zero
-    rsi = 100 - (100 / (1 + rs))
-
-    return rsi.fillna(50)  # Fill NaN with neutral value
-
-
-def calculate_macd(
-    series: pd.Series, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9
-) -> dict[str, pd.Series]:
-    """
-    Calculate Moving Average Convergence Divergence (MACD).
-
-    MACD is a trend-following momentum indicator that shows the relationship between
-    two moving averages of a security's price.
-
-    Financial Logic:
-    - MACD Line: Difference between Fast EMA (12) and Slow EMA (26).
-    - Signal Line: 9-day EMA of the MACD Line.
-    - Histogram: Difference between MACD Line and Signal Line.
-    - Crossovers: MACD crossing above Signal line is bullish; below is bearish.
-    - Divergence: Price making new highs while MACD makes lower highs suggests reversal.
-
-    Args:
-        series: Price series.
-        fast_period: Short-term EMA period (standard 12).
-        slow_period: Long-term EMA period (standard 26).
-        signal_period: EMA period for the Signal line (standard 9).
-
-    Returns:
-        Dict[str, pd.Series]: Dictionary containing 'macd', 'signal', and 'histogram' series.
-    """
-    # Calculate EMAs
-    ema_fast = calculate_ema(series, fast_period)
-    ema_slow = calculate_ema(series, slow_period)
-
-    # MACD line
-    macd = ema_fast - ema_slow
-
-    # Signal line
-    signal = calculate_ema(macd, signal_period)
-
-    # Histogram
-    histogram = macd - signal
-
-    return {"macd": macd, "signal": signal, "histogram": histogram}
-
-
-def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
-    """
-    Calculate Average True Range (ATR).
-
-    ATR is a market volatility indicator derived from the 14-day moving average of a series of
-    true range indicators. It does not provide an indication of price direction, just the
-    degree of price volatility.
-
-    Financial Logic:
-    - High ATR: High volatility (large candles, rapid movement).
-    - Low ATR: Low volatility (small candles, consolidation).
-    - Used for: Setting stop losses (e.g., 2x ATR), position sizing (volatility targeting).
-
-    Args:
-        high: High price series.
-        low: Low price series.
-        close: Close price series.
-        period: Lookback period (standard 14).
-
-    Returns:
-        pd.Series: ATR values representing average price movement range.
-    """
-    # Previous close
-    prev_close = close.shift(1)
-
-    # True Range components
-    tr1 = high - low  # Current high-low
-    tr2 = (high - prev_close).abs()  # High - Previous close
-    tr3 = (low - prev_close).abs()  # Low - Previous close
-
-    # True Range is max of all three (Optimized with numpy)
-    true_range = np.maximum(tr1, np.maximum(tr2, tr3))
-
-    # ATR is smoothed TR (Wilder's smoothing)
-    atr = true_range.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
-
-    return atr
-
-
-def calculate_bollinger_bands(
-    series: pd.Series, period: int = 20, num_std: float = 2.0
-) -> dict[str, pd.Series]:
-    """
-    Calculate Bollinger Bands.
-
-    Args:
-        series: Price series (typically close)
-        period: Moving average period
-        num_std: Number of standard deviations
-
-    Returns:
-        Dict with keys: 'upper', 'middle', 'lower', 'width', 'percent_b'
-    """
-    # Middle band (SMA)
-    middle = series.rolling(window=period).mean()
-
-    # Standard deviation
-    std = series.rolling(window=period).std()
-
-    # Upper and lower bands
-    upper = middle + (std * num_std)
-    lower = middle - (std * num_std)
-
-    # Bandwidth (volatility measure)
-    width = (upper - lower) / middle
-
-    # %B (position within bands, 0=lower, 1=upper)
-    percent_b = (series - lower) / (upper - lower)
-
-    return {
-        "upper": upper,
-        "middle": middle,
-        "lower": lower,
-        "width": width,
-        "percent_b": percent_b,
-    }
-
-
-def calculate_stochastic(
-    high: pd.Series, low: pd.Series, close: pd.Series, k_period: int = 14, d_period: int = 3
-) -> dict[str, pd.Series]:
-    """
-    Calculate Stochastic Oscillator.
-
-    Args:
-        high: High price series
-        low: Low price series
-        close: Close price series
-        k_period: %K period (default 14)
-        d_period: %D smoothing period (default 3)
-
-    Returns:
-        Dict with keys: 'k' (fast), 'd' (slow)
-    """
-    # Highest high and lowest low over period
-    lowest_low = low.rolling(window=k_period).min()
-    highest_high = high.rolling(window=k_period).max()
-
-    # %K calculation
-    k = 100 * (close - lowest_low) / (highest_high - lowest_low).replace(0, np.nan)
-
-    # %D is smoothed %K
-    d = k.rolling(window=d_period).mean()
-
-    return {"k": k.fillna(50), "d": d.fillna(50)}
-
-
-def calculate_vwap(
-    high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series
-) -> pd.Series:
-    """
-    Calculate Volume Weighted Average Price.
-
-    Note: This is cumulative VWAP (from start of data).
-    For session VWAP, data should be filtered to session.
-
-    Args:
-        high: High price series
-        low: Low price series
-        close: Close price series
-        volume: Volume series
-
-    Returns:
-        VWAP series
-    """
-    # Typical price
-    typical_price = (high + low + close) / 3
-
-    # Cumulative volume-price and volume
-    cum_vp = (typical_price * volume).cumsum()
-    cum_vol = volume.cumsum()
-
-    # VWAP
-    vwap = cum_vp / cum_vol.replace(0, np.nan)
-
-    return vwap
-
-
-def calculate_obv(close: pd.Series, volume: pd.Series) -> pd.Series:
-    """
-    Calculate On-Balance Volume.
-
-    Args:
-        close: Close price series
-        volume: Volume series
-
-    Returns:
-        OBV series
-    """
-    # Price direction
-    direction = np.sign(close.diff())
-
-    # OBV: cumulative sum of signed volume
-    obv = (direction * volume).cumsum()
-
-    return obv
-
-
-def calculate_adx(
-    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
-) -> dict[str, pd.Series]:
-    """
-    Calculate Average Directional Index.
-    Оптимизированная версия с использованием numpy для внутренних расчетов.
-
-    Args:
-        high: High price series
-        low: Low price series
-        close: Close price series
-        period: ADX period
-
-    Returns:
-        Dict with keys: 'adx', 'plus_di', 'minus_di'
-    """
-    # Переводим в numpy для скорости
-    h = high.values
-    l = low.values
-    c = close.values
-
-    # True Range
-    atr = calculate_atr(high, low, close, period)
-    atr_v = atr.values
-
-    # Directional Movement
-    up_move = np.zeros_like(h)
-    down_move = np.zeros_like(h)
-    up_move[1:] = h[1:] - h[:-1]
-    down_move[1:] = l[:-1] - l[1:]
-
-    # +DM and -DM
-    plus_dm_raw = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
-    minus_dm_raw = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
-
-    # Smooth DM (using pandas EWM for simplicity as it's already vectorized)
-    plus_dm_smooth = (
-        pd.Series(plus_dm_raw).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
-    )
-    minus_dm_smooth = (
-        pd.Series(minus_dm_raw).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
-    )
-
-    # +DI and -DI
-    plus_di = 100 * plus_dm_smooth.values / np.where(atr_v == 0, np.nan, atr_v)
-    minus_di = 100 * minus_dm_smooth.values / np.where(atr_v == 0, np.nan, atr_v)
-
-    # DX
-    denom = plus_di + minus_di
-    dx = 100 * np.abs(plus_di - minus_di) / np.where(denom == 0, np.nan, denom)
-
-    # ADX (smoothed DX)
-    adx = pd.Series(dx).ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
-
-    return {
-        "adx": pd.Series(adx.values, index=high.index).fillna(0),
-        "plus_di": pd.Series(plus_di, index=high.index).fillna(0),
-        "minus_di": pd.Series(minus_di, index=high.index).fillna(0),
-    }
-
-
-@lru_cache(maxsize=100)
-def calculate_all_indicators_cached(df_hash, df_bytes, include_advanced):
-    """Кэшированный расчет индикаторов."""
-    df = pickle.loads(df_bytes)
-    return calculate_all_indicators(df, include_advanced=include_advanced, use_cache=False)
-
-
-def calculate_all_indicators(
-    df: pd.DataFrame, include_advanced: bool = True, use_cache: bool = True
-) -> pd.DataFrame:
-    """
-    Calculate all standard indicators and add to dataframe.
-
-    Expects DataFrame with columns: open, high, low, close, volume
-
-    Args:
-        df: OHLCV DataFrame
-        include_advanced: Include ADX, VWAP, OBV (default True)
-        use_cache: Use caching for repeated calculations (default True)
-
-    Returns:
-        DataFrame with indicator columns added
-    """
-    if use_cache:
-        df_hash = _dataframe_hash(df)
-        df_bytes = pickle.dumps(df)
-        return calculate_all_indicators_cached(df_hash, df_bytes, include_advanced)
-
-    result = df.copy()
-
-    # Standardize column names
-    result.columns = result.columns.str.lower()
-
-    # EMAs
-    result["ema_9"] = calculate_ema(result["close"], 9)
-    result["ema_21"] = calculate_ema(result["close"], 21)
-    result["ema_50"] = calculate_ema(result["close"], 50)
-    result["ema_100"] = calculate_ema(result["close"], 100)
-    result["ema_200"] = calculate_ema(result["close"], 200)
-
-    # RSI
-    result["rsi"] = calculate_rsi(result["close"], 14)
-
-    # MACD
-    macd = calculate_macd(result["close"])
-    result["macd"] = macd["macd"]
-    result["macd_signal"] = macd["signal"]
-    result["macd_hist"] = macd["histogram"]
-
-    # ATR
-    result["atr"] = calculate_atr(result["high"], result["low"], result["close"], 14)
-
-    # Bollinger Bands
-    bb = calculate_bollinger_bands(result["close"])
-    result["bb_upper"] = bb["upper"]
-    result["bb_middle"] = bb["middle"]
-    result["bb_lower"] = bb["lower"]
-    result["bb_width"] = bb["width"]
-    result["bb_percent_b"] = bb["percent_b"]
-
-    # Stochastic
-    stoch = calculate_stochastic(result["high"], result["low"], result["close"])
-    result["stoch_k"] = stoch["k"]
-    result["stoch_d"] = stoch["d"]
-
-    if include_advanced:
-        # ADX
-        adx = calculate_adx(result["high"], result["low"], result["close"])
-        result["adx"] = adx["adx"]
-        result["plus_di"] = adx["plus_di"]
-        result["minus_di"] = adx["minus_di"]
-
-        # VWAP
-        result["vwap"] = calculate_vwap(
-            result["high"], result["low"], result["close"], result["volume"]
-        )
-
-        # OBV
-        result["obv"] = calculate_obv(result["close"], result["volume"])
-
-    # Volume SMA
-    result["volume_sma"] = calculate_sma(result["volume"], 20)
-
-    # CRITICAL: Sanitize all new columns
-    # We only sanitize columns that were added
-    new_cols = [c for c in result.columns if c not in df.columns]
+    df[f'vwma_{window}'] = (df['close'] * df['volume']).rolling(window=window).sum() / df['volume'].rolling(window=window).sum()
+    return df
+
+def calculate_ema(df: pd.DataFrame, period: int = 14, column: str = 'close') -> pd.DataFrame:
+    """Calculate Exponential Moving Average."""
+    df[f'ema_{period}'] = df[column].ewm(span=period, adjust=False).mean()
+    return df
+
+def calculate_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """Calculate Relative Strength Index."""
+    delta = df['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
     
-    if new_cols:
-        # Optimized vectorized sanitization
-        # 1. Replace Inf with NaN globally for new columns
-        # Note: direct assignment is faster than replace on entire DF subset sometimes, 
-        # but replace is robust.
-        result[new_cols] = result[new_cols].replace([np.inf, -np.inf], np.nan)
-        
-        # 2. Categorize columns for bulk filling
-        rsi_cols = [c for c in new_cols if "rsi" in c or "stoch" in c]
-        zero_cols = [c for c in new_cols if "returns" in c or "diff" in c or "macd" in c]
-        # Everything else uses ffill/bfill
-        other_cols = [c for c in new_cols if c not in rsi_cols and c not in zero_cols]
-        
-        # 3. Apply fills in bulk
-        if rsi_cols:
-            result[rsi_cols] = result[rsi_cols].fillna(50)
-            
-        if zero_cols:
-            result[zero_cols] = result[zero_cols].fillna(0)
-            
-        if other_cols:
-            # ffill then bfill then 0
-            result[other_cols] = result[other_cols].ffill().bfill().fillna(0)
+    rs = gain / loss
+    df[f'rsi_{period}'] = 100 - (100 / (1 + rs))
+    return df
 
-    logger.info(f"Calculated and sanitized {len(result.columns) - len(df.columns)} indicators")
+def calculate_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+    """Calculate MACD."""
+    exp1 = df['close'].ewm(span=fast, adjust=False).mean()
+    exp2 = df['close'].ewm(span=slow, adjust=False).mean()
+    df['macd'] = exp1 - exp2
+    df['macd_signal'] = df['macd'].ewm(span=signal, adjust=False).mean()
+    df['macd_hist'] = df['macd'] - df['macd_signal']
+    return df
 
-    return result
+def calculate_bollinger_bands(df: pd.DataFrame, window: int = 20, num_std: float = 2.0) -> pd.DataFrame:
+    """Calculate Bollinger Bands."""
+    rolling_mean = df['close'].rolling(window=window).mean()
+    rolling_std = df['close'].rolling(window=window).std()
+    df['bb_upper'] = rolling_mean + (rolling_std * num_std)
+    df['bb_lower'] = rolling_mean - (rolling_std * num_std)
+    df['bb_middle'] = rolling_mean
+    return df
+
+def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """Calculate Average True Range."""
+    high_low = df['high'] - df['low']
+    high_close = np.abs(df['high'] - df['close'].shift())
+    low_close = np.abs(df['low'] - df['close'].shift())
+    
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = np.max(ranges, axis=1)
+    
+    df[f'atr_{period}'] = true_range.rolling(window=period).mean()
+    return df
+
+def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """Calculate ADX (Simplified)."""
+    # Requires ATR
+    if f'atr_{period}' not in df.columns:
+        df = calculate_atr(df, period)
+        
+    up = df['high'].diff()
+    down = -df['low'].diff()
+    
+    plus_dm = np.where((up > down) & (up > 0), up, 0.0)
+    minus_dm = np.where((down > up) & (down > 0), down, 0.0)
+    
+    plus_di = 100 * pd.Series(plus_dm).ewm(alpha=1/period).mean() / df[f'atr_{period}']
+    minus_di = 100 * pd.Series(minus_dm).ewm(alpha=1/period).mean() / df[f'atr_{period}']
+    
+    dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di)
+    df[f'adx_{period}'] = dx.ewm(alpha=1/period).mean()
+    return df
+
+def calculate_obv(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate On-Balance Volume."""
+    df['obv'] = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
+    return df
+
+def calculate_stochastic(df: pd.DataFrame, k_period: int = 14, d_period: int = 3) -> pd.DataFrame:
+    """Calculate Stochastic Oscillator."""
+    low_min = df['low'].rolling(window=k_period).min()
+    high_max = df['high'].rolling(window=k_period).max()
+    
+    df['stoch_k'] = 100 * ((df['close'] - low_min) / (high_max - low_min))
+    df['stoch_d'] = df['stoch_k'].rolling(window=d_period).mean()
+    return df
+
+def calculate_vwap(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate VWAP (simplified, cumulative)."""
+    v = df['volume'].values
+    tp = (df['high'] + df['low'] + df['close']) / 3
+    df['vwap'] = df.assign(vwap=(tp * v).cumsum() / v.cumsum())['vwap']
+    return df
+
+def calculate_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate all standard indicators."""
+    df = calculate_ema(df, 20)
+    df = calculate_ema(df, 50)
+    df = calculate_ema(df, 200)
+    df = calculate_rsi(df)
+    df = calculate_macd(df)
+    df = calculate_bollinger_bands(df)
+    df = calculate_atr(df)
+    df = calculate_adx(df)
+    df = calculate_obv(df)
+    df = calculate_stochastic(df)
+    df = calculate_vwap(df)
+    return df

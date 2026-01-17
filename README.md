@@ -114,6 +114,8 @@ make dev-install
 | **Linting** | `make lint` | `.\manage.ps1 lint` |
 | **Formatting** | `make format` | `.\manage.ps1 format` |
 | **Run Tests** | `make test` | `.\manage.ps1 test` |
+| **Run Integration Tests** | `pytest tests/integration` | `pytest tests/integration` |
+| **Run Risk Tests** | `pytest tests/test_risk` | `pytest tests/test_risk` |
 | **Coverage** | `make test-cov` | `.\manage.ps1 test-cov` |
 | **Backtest** | `make backtest` | `.\manage.ps1 backtest` |
 | **Clean** | `make clean` | `.\manage.ps1 clean` |

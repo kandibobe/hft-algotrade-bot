@@ -1,65 +1,119 @@
-site_name: Stoic Citadel Documentation
+site_name: Stoic Citadel
+site_url: https://kandibobe.github.io/mft-algotrade-bot/
+repo_url: https://github.com/kandibobe/mft-algotrade-bot
+repo_name: kandibobe/mft-algotrade-bot
+edit_uri: edit/main/docs/
+
 theme:
   name: material
+  logo: assets/logo.png
+  favicon: assets/favicon.ico
   palette:
-    scheme: slate
-    primary: indigo
-    accent: indigo
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   features:
     - navigation.tabs
     - navigation.sections
-    - toc.integrate
+    - navigation.expand
+    - navigation.top
     - search.suggest
     - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - announce.dismiss
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
 
 plugins:
   - search
-  - mike:
-      version_selector: true
-      canonical_version: latest
+  - social
   - mkdocstrings:
-      default_handler: python
       handlers:
         python:
           paths: [src]
           options:
-            show_source: true
             show_root_heading: true
+            show_source: true
+            members_order: source
             show_category_heading: true
+            
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kandibobe
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/freqtrade/
 
 nav:
   - Home: index.md
   - Getting Started:
-    - Installation: getting_started/installation.md
-    - Quick Start: getting_started/quick_start.md
-    - Telegram Bot: getting_started/telegram.md
-  - Architecture:
-    - Overview: architecture/overview.md
-    - MFT Layer: architecture/mft_layer.md
-    - Project Structure: architecture/project_structure.md
-  - Guides:
-    - Strategy Development: guides/strategy_development.md
-    - Risk Management: guides/risk_management.md
-    - ML Pipeline: guides/ml_pipeline.md
-    - Backtesting: guides/backtesting.md
-    - Walk Forward Optimization: guides/wfo.md
-    - Advanced Pipeline: guides/advanced_pipeline.md
-    - Nightly HyperOpt: guides/nightly_hyperopt.md
+      - Installation: getting_started/installation.md
+      - Quick Start: getting_started/quick_start.md
+      - Telegram Bot: getting_started/telegram.md
+  - Tutorials:
+      - Strategy Development: guides/strategy_development.md
+      - ML Pipeline: guides/ml_pipeline.md
+      - Backtesting: guides/backtesting.md
+  - How-To Guides:
+      - Cookbook: guides/cookbook.md
+      - Nightly Hyperopt: guides/nightly_hyperopt.md
+      - Walk-Forward Optimization: guides/wfo.md
+      - Advanced Pipeline: guides/advanced_pipeline.md
+      - Risk Management: guides/risk_management.md
   - Concepts:
-    - Health Check System: concepts/health_check.md
-    - Structured Logging: concepts/structured_logging.md
+      - Hybrid MFT Architecture: architecture/hybrid_mft.md
+      - Overview: architecture/overview.md
+      - MFT Layer: architecture/mft_layer.md
+      - Project Structure: architecture/project_structure.md
+      - Health Check System: concepts/health_check.md
+      - Structured Logging: concepts/structured_logging.md
   - Operations:
-    - Deployment: ops/deployment.md
-    - Launch Checklist: ops/launch_checklist.md
-    - Automation: ops/automation.md
-    - Tools: ops/tools.md
+      - Deployment: ops/deployment.md
+      - Automation: ops/automation.md
+      - Runbook: ops/runbook.md
+      - Tools: ops/tools.md
+      - Launch Checklist: ops/launch_checklist.md
   - Reference:
-    - API Overview: reference/api_overview.md
-    - Testing Guide: reference/testing.md
-  - Russian Documentation:
-    - Home: ru/index.md
-    - API Setup: ru/api_setup.md
-    - Telegram Setup: ru/telegram.md
-    - Architecture Overview: ru/architecture_overview.md
-    - Risk Management: ru/risk_management.md
-    - ML Pipeline: ru/ml_pipeline.md
+      - API: reference/api_overview.md
+      - Config API: api/config.md
+      - Testing: reference/testing.md
+  - Community:
+      - Contributing: CONTRIBUTING.md
+      - Code of Conduct: CODE_OF_CONDUCT.md
+      - Security: SECURITY.md
+  - Archive (RU):
+      - Архитектура: ru/architecture_overview.md
+      - ML конвейер: ru/ml_pipeline.md
+      - Риск-менеджмент: ru/risk_management.md
+      - Настройка Telegram: ru/telegram.md
+      - Настройка API: ru/api_setup.md

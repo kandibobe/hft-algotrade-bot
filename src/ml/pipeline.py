@@ -116,5 +116,43 @@ class MLPipeline:
             results[pair] = model_path
         return results
 
-MLTrainingPipeline = MLPipeline
+    def train_on_data(self, data: pd.DataFrame, pair: str, optimize: bool = False) -> dict[str, Any]:
+        """Train model on specific data (for WFO)."""
+        try:
+            # Feature Engineering
+            df_features = self.engineer.prepare_data(data)
+            
+            # Labeling
+            labels = self.labeler.label(df_features)
+            df_features["target"] = labels
+            
+            df_clean = df_features.dropna(subset=["target"])
+            
+            if len(df_clean) < 100:
+                return {"success": False, "reason": "Insufficient data"}
 
+            optimizer = HyperparameterOptimizer(
+                n_trials=10 if self.quick_mode else 100,
+                study_name=f"opt_{pair.replace('/', '_')}_wfo"
+            )
+            
+            X = df_clean.drop(columns=["target", "date", "timestamp", "open", "high", "low", "close", "volume"], errors="ignore")
+            y = df_clean["target"]
+            
+            if optimize:
+                best_params = optimizer.optimize(X, y)
+                # self.trainer.config.params = best_params # Hypothetical
+            
+            model, metrics, features = self.trainer.train(X, y)
+            
+            return {
+                "success": True,
+                "model": model,
+                "features": features,
+                "metrics": metrics
+            }
+        except Exception as e:
+            logger.exception(f"Training failed: {e}")
+            return {"success": False, "reason": str(e)}
+
+MLTrainingPipeline = MLPipeline

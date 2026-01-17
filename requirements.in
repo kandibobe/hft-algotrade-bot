@@ -1,72 +1,27 @@
-# This file contains the top-level dependencies for the project.
-# Use `pip-compile requirements.in` to generate the pinned requirements.txt file.
 
-# Core
-pandas>=2.0.0
-numpy>=1.24.0
-pyyaml>=6.0
-sqlalchemy>=2.0.0
-psycopg>=3.1.18
-redis>=5.0.0
-ccxt>=4.0.0
-aiohttp>=3.9.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
-freqtrade>=2024.1
-ta-lib>=0.4.0
-
-# ML
-scikit-learn>=1.3.0
-scikit-optimize>=0.9.0
-river>=0.21.0
-feast>=0.30.0
-onnxruntime>=1.15.0
-imbalanced-learn>=0.10.0
-optuna>=3.0.0
-xgboost>=2.0.0
-lightgbm>=4.0.0
-pandas-ta
-shap>=0.44.0
-tsfresh>=0.20.0
-textblob>=0.17.0
-
-# Analysis & Visualization
-plotly>=5.14.0
-matplotlib>=3.7.0
-seaborn>=0.13.0
-jupyter>=1.0.0
-streamlit>=1.30.0
-newsapi-python>=0.2.7
-mplfinance>=0.12.9b7
-openai>=1.0.0
-pycoingecko>=3.1.0
-pytrends>=4.9.0
-
-# Utilities
-structlog>=24.0.0
-pyarrow>=14.0.0
-tenacity>=8.0.0
-prometheus-client>=0.19.0
-numba>=0.58.0
-
-# Development & Testing
-pytest>=7.0.0
-pytest-cov>=4.0.0
-pytest-mock>=3.10.0
-pytest-xdist>=3.0.0
-pytest-asyncio>=0.23.0
-pytest-postgresql>=6.0.0
-hypothesis>=6.90.0
-ruff>=0.9.0
-black>=23.0.0
-isort>=5.12.0
-mypy>=1.0.0
-pandas-stubs>=2.0.0
-types-PyYAML>=6.0.0
-mkdocs>=1.5.0
-mkdocs-material>=9.0.0
-pre-commit>=3.0.0
-safety>=2.0.0
-bandit>=1.7.0
-pip-audit>=2.7.0
-detect-secrets>=1.4.0
+# Core Dependencies
+freqtrade
+ccxt
+pandas
+numpy
+scipy
+scikit-learn
+lightgbm
+xgboost
+optuna
+sqlalchemy
+alembic
+psycopg2-binary
+redis
+feast
+pydantic
+pydantic-settings
+python-dotenv
+uvicorn[standard]
+fastapi
+typer
+rich
+structlog
+prometheus-client
+tenacity
+cachetools

@@ -1,3 +1,4 @@
+
 import os
 import base64
 import logging
@@ -5,27 +6,48 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+from src.utils.vault_client import VaultClient, is_vault_available
+
 logger = logging.getLogger(__name__)
 
 class SecretManager:
     """
-    Manages encryption and decryption of sensitive data like API keys.
-    Uses a master key derived from an environment variable.
+    Manages retrieval of sensitive data like API keys.
+    It prioritizes fetching secrets from HashiCorp Vault if available.
+    If Vault is not configured, it falls back to a local decryption method
+    for legacy secrets. New secrets should be stored in Vault.
     """
     
     _fernet = None
 
     @classmethod
+    def get_secret(cls, identifier: str) -> str:
+        """
+        Retrieves a secret, prioritizing Vault.
+        
+        The identifier can be a Vault path (e.g., 'exchange/binance') or
+        a locally encrypted string ("ENC:...").
+        """
+        if is_vault_available():
+            try:
+                path, key = identifier.rsplit('/', 1)
+                secret = VaultClient.get_secret(path, key)
+                if secret:
+                    return secret
+            except ValueError:
+                logger.warning(f"Identifier '{identifier}' is not in 'path/key' format for Vault. Falling back to local.")
+
+        return cls._decrypt_local(identifier)
+
+    @classmethod
     def _get_fernet(cls):
         if cls._fernet is None:
-            # Try to get master key from environment
             master_key = os.getenv("STOIC_MASTER_KEY")
             if not master_key:
                 logger.warning("STOIC_MASTER_KEY not set. Using default development key. NOT SECURE FOR PRODUCTION!")
                 master_key = "dev-secret-key-do-not-use-in-production"
             
-            # Derive a stable 32-byte key from the master key
-            salt = b'stoic_citadel_salt' # In a real app, this would be stored separately
+            salt = b'stoic_citadel_salt'
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
@@ -37,18 +59,8 @@ class SecretManager:
         return cls._fernet
 
     @classmethod
-    def encrypt(cls, data: str) -> str:
-        """Encrypt a string."""
-        if not data:
-            return ""
-        f = cls._get_fernet()
-        # Add a prefix to identify encrypted data
-        encrypted = f.encrypt(data.encode()).decode()
-        return f"ENC:{encrypted}"
-
-    @classmethod
-    def decrypt(cls, data: str) -> str:
-        """Decrypt a string if it's encrypted."""
+    def _decrypt_local(cls, data: str) -> str:
+        """Decrypt a string if it's in the legacy encrypted format."""
         if not data or not data.startswith("ENC:"):
             return data
         
@@ -58,19 +70,4 @@ class SecretManager:
             return f.decrypt(encrypted_part.encode()).decode()
         except Exception as e:
             logger.error(f"Failed to decrypt secret: {e}")
-            return data # Return original if decryption fails
-
-def main():
-    """CLI tool for encrypting secrets."""
-    import sys
-    if len(sys.argv) < 2:
-        print("Usage: python -m src.utils.secret_manager <text_to_encrypt>")
-        return
-
-    text = sys.argv[1]
-    encrypted = SecretManager.encrypt(text)
-    print(f"\nEncrypted value:\n{encrypted}\n")
-    print("Copy this value to your config.json or .env file.")
-
-if __name__ == "__main__":
-    main()
+            return data

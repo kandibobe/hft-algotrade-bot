@@ -25,8 +25,10 @@ Thumbs.db
 desktop.ini
 [Dd]esktop.ini
 [Tt]humbs.db
-.AppleDouble
 .LSOverride
+*.ilk
+*.pdb
+*.obj
 
 # ============================================================
 # SECRETS & CREDENTIALS (CRITICAL - NEVER COMMIT!)
@@ -52,12 +54,14 @@ config_live.json
 
 # Local config (Visible locally, ignored for git)
 config.json
+test_config.json
 
 # Ignore any specific pattern configs
 config_*.json
 !config.json.example
 secrets.json
 connectors.yaml
+alembic.ini
 
 # SSH & GPG keys
 id_rsa
@@ -108,6 +112,7 @@ ENV/
 env/
 .venv/
 *.env
+.env
 
 # Jupyter
 .ipynb_checkpoints/
@@ -141,6 +146,7 @@ user_data/backtest_results/
 user_data/hyperopt_results/
 !user_data/hyperopt_results/.gitkeep
 user_data/hyperopt_results.json
+user_data/hyperopt_results_*.json
 user_data/plot/
 !user_data/plot/.gitkeep
 
@@ -154,6 +160,8 @@ user_data/walk_forward_results_track_b/
 *.sqlite3
 *.sqlite-*
 *.db
+*.db-journal
+*.db-wal
 tradesv3.*.sqlite*
 
 # Logs
@@ -188,6 +196,7 @@ user_data/freqaimodels/
 *.parquet
 user_data/model_best_params.json
 user_data/model_best_params_*.json
+config/model_best_params.json
 
 # Feature & Research Artifacts
 user_data/notebooks/
@@ -213,6 +222,7 @@ reports/
 !reports/.gitkeep
 .claude/
 output.txt
+user_data/circuit_breaker_state.json
 
 # ============================================================
 # DOCKER & DEPLOYMENT
@@ -221,3 +231,6 @@ docker-compose.override.yml
 docker-compose.local.yml
 *.manifest
 *.spec
+# Remove directories incorrectly added as files in some environments
+docker/nginx/frequi.conf/
+docker/nginx/nginx.conf/

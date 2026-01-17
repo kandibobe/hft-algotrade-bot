@@ -98,15 +98,15 @@ class WFOEngine:
             if self.wfo_config.optimize_hyperparams:
                 pipeline.config.training.hyperopt_trials = self.wfo_config.n_trials
                 
-            # Directly call the optimizer to get the model and feature list
-            train_result = pipeline.optimizer.train(
+            # Use the new train_on_data API
+            train_result = pipeline.train_on_data(
                 train_data, 
                 pair, 
                 optimize=self.wfo_config.optimize_hyperparams
             )
 
             if not train_result.get("success"):
-                logger.warning(f"Skipping fold due to training failure for {pair}")
+                logger.warning(f"Skipping fold due to training failure for {pair}: {train_result.get('reason')}")
                 fold_start += pd.Timedelta(days=self.wfo_config.step_days)
                 continue
 
@@ -115,10 +115,19 @@ class WFOEngine:
 
             # 2. Generate signals using the trained model
             try:
-                # Process test data to get the full feature set
-                # The feature_engineer instance in the pipeline is already fitted on train_data
-                feature_engineer = pipeline.optimizer.feature_engineer
+                # Feature engineering on test data
+                # Ideally we should use the fitted pipeline from train_on_data but MLPipeline 
+                # abstracts it. For WFO we need consistent transformation.
+                # Assuming engineer is stateless or we re-init. 
+                # NOTE: For strict WFO, scaling params should be from train set.
+                # The current pipeline.engineer might not be fitted if train_on_data used internal engineer.
+                # Let's rely on train_on_data's engineer state if exposed, or fallback.
+                
+                # IMPORTANT: pipeline.engineer matches the one used in train_on_data
+                feature_engineer = pipeline.engineer 
                 prepared_test_data = feature_engineer.prepare_data(test_data.copy())
+                # Note: transform_scaler_and_selector requires fitting. 
+                # train_on_data fits it. So we can transform here.
                 processed_test_data = feature_engineer.transform_scaler_and_selector(prepared_test_data)
 
                 # Align indexes to avoid mismatches

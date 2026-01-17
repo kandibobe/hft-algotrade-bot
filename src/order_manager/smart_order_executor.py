@@ -39,6 +39,7 @@ class SmartOrderExecutor:
         self,
         aggregator: DataAggregator | None = None,
         exchange_config: dict | None = None,
+        additional_exchanges: list[dict] | None = None,
         dry_run: bool = True,
         shadow_mode: bool = False,
         risk_manager: RiskManager | None = None,
@@ -50,6 +51,7 @@ class SmartOrderExecutor:
         self._lock = asyncio.Lock()
 
         self._exchange_config = exchange_config or {}
+        self._additional_exchanges = additional_exchanges or []
         self._dry_run = dry_run
         self._shadow_mode = shadow_mode
 
@@ -59,13 +61,41 @@ class SmartOrderExecutor:
         # Initialize Notification Bot
         self.telegram = TelegramBot()
 
-        # Initialize Backend
+        # Initialize Backends registry
+        self.backends: dict[str, IExchangeBackend] = {}
+        
+        # Primary Backend Name
+        self.primary_exchange = self._exchange_config.get("name", "default")
+
         if self._dry_run or self._shadow_mode:
             log.warning(f"STARTING IN {'SHADOW' if self._shadow_mode else 'DRY-RUN'} MODE (Mock Execution)")
-            self.backend: IExchangeBackend = MockExchangeBackend(aggregator)
+            # In mock mode, we use MockExchangeBackend for all requested exchanges
+            # We initialize one for the primary
+            self.backends[self.primary_exchange] = MockExchangeBackend(aggregator)
+            
+            # And one for each secondary
+            for ex in self._additional_exchanges:
+                name = ex.get("name", "unknown")
+                self.backends[name] = MockExchangeBackend(aggregator)
         else:
             log.warning("🚨 STARTING IN LIVE MODE (Real Execution)")
-            self.backend = CCXTBackend(self._exchange_config)
+            # Primary
+            self.backends[self.primary_exchange] = CCXTBackend(self._exchange_config)
+            
+            # Secondaries
+            for ex in self._additional_exchanges:
+                name = ex.get("name")
+                if name:
+                    self.backends[name] = CCXTBackend(ex)
+
+    @property
+    def backend(self) -> IExchangeBackend:
+        """Legacy accessor for the primary backend."""
+        return self.backends.get(self.primary_exchange)
+
+    def get_backend(self, exchange_name: str) -> IExchangeBackend:
+        """Get backend by name, defaulting to primary if not found."""
+        return self.backends.get(exchange_name, self.backends.get(self.primary_exchange))
 
     async def start(self):
         """Start the executor service."""
@@ -80,7 +110,7 @@ class SmartOrderExecutor:
                 log.error(msg)
                 raise RuntimeError(msg)
 
-            # 2. Credential Check
+            # 2. Credential Check (Primary)
             key = self._exchange_config.get("key")
             secret = self._exchange_config.get("secret")
             if not key or not secret:
@@ -90,16 +120,17 @@ class SmartOrderExecutor:
 
             log.warning("⚠️  LIVE TRADING ENABLED - REAL FUNDS AT RISK ⚠️")
 
-        try:
-            await self.backend.initialize()
-            log.info("Smart Order Executor backend initialized")
-        except Exception as e:
-            log.error("Failed to initialize backend", error=str(e))
-            # In live mode, this is critical. In dry run, maybe we survive?
-            if not self._dry_run:
-                raise e
+        # Initialize all backends
+        for name, backend in self.backends.items():
+            try:
+                await backend.initialize()
+                log.info(f"Backend initialized: {name}")
+            except Exception as e:
+                log.error(f"Failed to initialize backend {name}", error=str(e))
+                if not self._dry_run and name == self.primary_exchange:
+                    raise e
 
-        logger.info("Smart Order Executor started")
+        logger.info(f"Smart Order Executor started with {len(self.backends)} backends")
 
         # If aggregator is provided, subscribe to ticker updates
         if self.aggregator:
@@ -440,10 +471,19 @@ class SmartOrderExecutor:
         if not ticker.arbitrage_opportunity:
             return
 
-        log.info(f"Executing arbitrage trade for {ticker.symbol}...")
-
         buy_exchange = ticker.best_ask_exchange
         sell_exchange = ticker.best_bid_exchange
+
+        # Validate we have connections to these exchanges
+        # Note: In Dry Run / Shadow Mode, we might mock all exchanges, so we check availability.
+        if buy_exchange not in self.backends:
+            log.warning(f"Arbitrage skipped: No backend for buy exchange '{buy_exchange}'")
+            return
+        if sell_exchange not in self.backends:
+            log.warning(f"Arbitrage skipped: No backend for sell exchange '{sell_exchange}'")
+            return
+
+        log.info(f"Executing arbitrage trade for {ticker.symbol}...")
 
         buy_price = ticker.best_ask
         sell_price = ticker.best_bid
@@ -465,11 +505,11 @@ class SmartOrderExecutor:
         # We need a way to specify the exchange for each order.
         # This functionality is not yet implemented in the backend.
         # I will add a placeholder for now.
-        log.warning("Arbitrage execution is not yet fully implemented.")
-        log.warning("Need to add exchange-specific execution to the backend.")
+        # log.warning("Arbitrage execution is not yet fully implemented.")
+        # log.warning("Need to add exchange-specific execution to the backend.")
 
-        # await self.submit_order(buy_order, exchange=buy_exchange)
-        # await self.submit_order(sell_order, exchange=sell_exchange)
+        await self.submit_order(buy_order, exchange=buy_exchange)
+        await self.submit_order(sell_order, exchange=sell_exchange)
 
     async def _place_initial_order(self, order: SmartOrder):
         """Place the initial order on the exchange."""

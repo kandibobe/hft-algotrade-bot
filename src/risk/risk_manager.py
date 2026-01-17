@@ -255,6 +255,20 @@ class RiskManager:
             position_multiplier=Decimal(str(cb_status.get("position_multiplier", 1.0))),
         )
 
+        if METRICS_AVAILABLE:
+            try:
+                exporter = get_exporter()
+                # Calculate estimated portfolio value (balance + unrealized pnl)
+                pf_value = float(self._account_balance) + unrealized
+                exporter.update_portfolio_metrics(
+                    value=pf_value,
+                    positions=list(self._positions.keys()),
+                    pnl_pct=float(self._metrics.daily_pnl_pct)
+                )
+                exporter.set_circuit_breaker_status(1 if not self._metrics.can_trade else 0)
+            except Exception as e:
+                logger.warning(f"Failed to update Prometheus metrics: {e}")
+
     def emergency_stop(self) -> None:
         self.circuit_breaker.manual_stop()
         self.emergency_exit = True
@@ -264,3 +278,20 @@ class RiskManager:
 
     def get_status(self) -> dict:
         return {"metrics": self._metrics.__dict__, "circuit_breaker": self.circuit_breaker.get_status(), "positions": self._positions}
+
+    def get_metrics(self) -> dict:
+        """
+        Get current risk metrics in a dictionary format.
+        Useful for testing and UI integration.
+        """
+        return {
+            "total_exposure": float(self._metrics.total_exposure),
+            "exposure_pct": float(self._metrics.exposure_pct),
+            "open_positions": self._metrics.open_positions,
+            "daily_pnl": float(self._metrics.daily_pnl),
+            "daily_pnl_pct": float(self._metrics.daily_pnl_pct),
+            "unrealized_pnl": float(self._metrics.unrealized_pnl),
+            "current_drawdown_pct": float(self._metrics.current_drawdown_pct),
+            "circuit_state": self._metrics.circuit_state,
+            "can_trade": self._metrics.can_trade
+        }

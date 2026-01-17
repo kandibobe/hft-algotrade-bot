@@ -323,4 +323,3 @@ class WebSocketDataStream:
             "last_message_age_seconds": last_msg_age,
             "stats": self.get_stats(),
         }
-

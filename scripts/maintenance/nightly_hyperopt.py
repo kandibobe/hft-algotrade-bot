@@ -85,10 +85,7 @@ class ResourceMonitor:
         if disk_free_gb < self.min_disk_gb:
             issues.append(f"Disk free {disk_free_gb:.1f}GB < {self.min_disk_gb}GB minimum")
 
-        # Check CPU load (optional)
-        cpu_percent = psutil.cpu_percent(interval=1)
-        if cpu_percent > 95:
-            issues.append(f"CPU load {cpu_percent}% > 95%")
+        # CPU check removed as 100% is expected during parallel optimization
 
         if issues:
             return False, "; ".join(issues)
@@ -208,7 +205,7 @@ class NightlySharpeRatioObjective:
             "reg_lambda": trial.suggest_float("reg_lambda", 0.5, 2.0),
             "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
             "random_state": 42,
-            "n_jobs": -1,
+            "n_jobs": 1,  # Set to 1 so each Optuna worker uses exactly 1 core
             "verbosity": 0,
             "use_label_encoder": False,
             "eval_metric": "logloss",
@@ -219,12 +216,7 @@ class NightlySharpeRatioObjective:
 
         # TimeSeriesSplit cross-validation
         for fold, (train_idx, val_idx) in enumerate(self.cv.split(self.X)):
-            # Check resources between folds
-            if self.resource_monitor:
-                ok, msg = self.resource_monitor.check_resources()
-                if not ok:
-                    logger.warning(f"Resource check failed during fold {fold}: {msg}")
-                    raise optuna.TrialPruned(f"Resource limits exceeded: {msg}")
+            # Resource check within folds removed for stability
 
             # Split data
             X_train, X_val = self.X.iloc[train_idx], self.X.iloc[val_idx]
@@ -233,7 +225,8 @@ class NightlySharpeRatioObjective:
 
             # Create and train model
             if XGB_AVAILABLE:
-                model = xgb.XGBClassifier(**params)
+                # Add base_score=0.5 explicitly for binary classification
+                model = xgb.XGBClassifier(base_score=0.5, **params)
             else:
                 from sklearn.ensemble import GradientBoostingClassifier
 
@@ -375,28 +368,40 @@ class NightlyHyperparameterOptimizer:
 
         # Load OHLCV data
         df = get_ohlcv(
-            symbol=symbol,
+            pair=symbol,
             timeframe=timeframe,
-            start=start_date.strftime("%Y-%m-%d"),
-            end=end_date.strftime("%Y-%m-%d"),
             exchange="binance",
-            use_cache=True,
         )
 
+        # Ensure index is datetime and drop it from columns if it exists
+        if not isinstance(df.index, pd.DatetimeIndex):
+            if "date" in df.columns:
+                df["date"] = pd.to_datetime(df["date"])
+                df.set_index("date", inplace=True)
+            else:
+                for col in df.columns:
+                    if "date" in col.lower() or "time" in col.lower():
+                        df[col] = pd.to_datetime(df[col])
+                        df.set_index(col, inplace=True)
+                        break
+
         logger.info(f"Loaded {len(df)} candles from {df.index[0]} to {df.index[-1]}")
+
+        # Extract close prices before feature engineering/labeling
+        close_prices = df["close"]
 
         # Feature engineering
         logger.info("Generating features...")
         feature_engineer = FeatureEngineer()
-        X = feature_engineer.fit_transform(df)
+        X = feature_engineer.fit_transform(df.copy())
+        
+        # Remove non-numeric columns from X to avoid scaler issues
+        X = X.select_dtypes(include=[np.number])
 
         # Labeling
         logger.info("Generating labels...")
         labeler = TripleBarrierLabeler(config=TripleBarrierConfig())
         y = labeler.label(df)
-
-        # Extract close prices
-        close_prices = df["close"]
 
         # Align features, labels, and close prices
         common_index = X.index.intersection(y.index).intersection(close_prices.index)
@@ -533,12 +538,20 @@ class NightlyHyperparameterOptimizer:
             / f"intermediate_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         )
 
+        # Handle case where no trials completed successfully yet
+        try:
+            best_value = study.best_value
+            best_params = study.best_params
+        except ValueError:
+            best_value = None
+            best_params = None
+
         # Convert study to serializable format
         serializable_results = {
             "timestamp": datetime.now().isoformat(),
             "n_trials_completed": len(study.trials),
-            "best_value": study.best_value,
-            "best_params": study.best_params,
+            "best_value": best_value,
+            "best_params": best_params,
             "trials_summary": [
                 {
                     "number": t.number,

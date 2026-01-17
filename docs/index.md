@@ -1,26 +1,38 @@
 # Welcome to Stoic Citadel
 
-**Institutional-Grade Mid-Frequency Trading (MFT) System**
+**Stoic Citadel** is a professional-grade, hybrid Mid-Frequency Trading (MFT) platform. It's designed for quants and developers who require both sophisticated, high-level strategy design and precise, low-latency execution.
 
-## Overview
+---
 
-Stoic Citadel is a next-generation crypto trading framework designed to bridge the gap between traditional Algo-Trading bots (like Freqtrade) and HFT/MFT institutional systems. It leverages a **Hybrid Architecture** to combine strategic, synchronous analysis with high-speed, asynchronous execution.
+### Key Features
 
-## Current Status: Soft Launch
+-   **Hybrid Architecture:** Combines a Python/Freqtrade-based synchronous layer for strategy and ML with a high-performance `asyncio` layer for execution.
+-   **Advanced Risk Management:** Features multi-layered protection including circuit breakers, dynamic position sizing, and HRP portfolio optimization.
+-   **ML-Powered:** Integrated machine learning pipeline for signal generation, online learning, and performance analysis.
+-   **Production-Ready:** Built for deployment with Docker, continuous integration, and comprehensive monitoring.
 
-The system is currently in **Soft Launch** mode, running the V6 Strategy. This ensures:
-*   **Safety:** Full integration with the `RiskManager`.
-*   **Stability:** Use of proven ML models and HRP sizing.
-*   **Performance:** Low-latency execution via the async order manager.
+---
 
-## Documentation Structure
+### Getting Started
 
-*   **[Getting Started](getting_started/installation.md):** Installation, configuration, and first launch.
-*   **[Architecture](architecture/overview.md):** Deep dive into the Hybrid Async/Sync design.
-*   **[Risk Management](architecture/risk_layer.md):** Explanation of Circuit Breakers, HRP, and Drawdown protection.
-*   **[ML Pipeline](guides/ml_pipeline.md):** How the Feature Store and Model Registry work.
+New to the project? Start here to get your environment up and running in minutes.
 
-## Quick Links
+<div class="grid cards" markdown>
 
-*   [Source Code](https://github.com/kandibobe/mft-algotrade-bot)
-*   [Latest Audit Report](reports/archive/final_audit_fix_report.md)
+-   [**Installation**](getting_started/installation.md)
+-   [**Quick Start**](getting_started/quick_start.md)
+
+</div>
+
+### For Developers
+
+Ready to dive deeper? These guides cover the core concepts and workflows.
+
+<div class="grid cards" markdown>
+
+-   [**Architecture Deep Dive**](concepts/hybrid_mft.md)
+-   [**Strategy Development**](tutorials/strategy_development.md)
+-   [**API Reference**](reference/api_overview.md)
+-   [**Contributing**](community/contributing.md)
+
+</div>

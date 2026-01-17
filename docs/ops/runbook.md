@@ -20,6 +20,12 @@ Perform these checks every morning (e.g., 08:00 UTC).
     tail -n 100 user_data/logs/stoic_citadel.log | grep "Circuit Breaker"
     ```
     *   Expected: No "Circuit Breaker TRIPPED" messages in the last 24h.
+2.  **Verify System Integrity:**
+    Run critical tests to ensure risk engine is active.
+    ```bash
+    pytest tests/test_risk/test_circuit_breaker.py
+    ```
+    *   Expected: 10 passed.
 2.  **Verify HRP Weights:**
     ```bash
     tail -n 100 user_data/logs/stoic_citadel.log | grep "Updated HRP weights"

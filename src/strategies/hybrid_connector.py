@@ -90,6 +90,13 @@ class HybridConnectorMixin:
                 "key": config.exchange.api_key,
                 "secret": config.exchange.api_secret,
             }
+            additional_exchanges = []
+            if hasattr(config, "additional_exchanges") and config.additional_exchanges:
+                additional_exchanges = [
+                    {"name": ex.name, "key": ex.api_key, "secret": ex.api_secret}
+                    for ex in config.additional_exchanges
+                ]
+
             dry_run = config.dry_run
             target_exchange = exchange_name or config.exchange.name
         except Exception as e:
@@ -101,6 +108,7 @@ class HybridConnectorMixin:
         self._executor = SmartOrderExecutor(
             aggregator=self._aggregator,
             exchange_config=exchange_config,
+            additional_exchanges=additional_exchanges,
             dry_run=dry_run,
             shadow_mode=shadow_mode,
             risk_manager=risk_manager
@@ -128,6 +136,13 @@ class HybridConnectorMixin:
 
     def _run_async_loop(self):
         """Internal method to run the asyncio loop."""
+        try:
+            import uvloop
+            asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+            logger.info("Using uvloop for high-performance AsyncIO")
+        except ImportError:
+            logger.warning("uvloop not found, falling back to standard asyncio")
+
         asyncio.set_event_loop(self._loop)
 
         tasks = [self._aggregator.start()]
@@ -166,4 +181,30 @@ class HybridConnectorMixin:
         if not ticker:
             return 0.0
         return getattr(ticker, 'imbalance', 0.0)
-            # Let's log warning and allow for now, to avoid blocking startup trades
+
+    def submit_smart_order(self, order: "SmartOrder", exchange: str = None) -> str | None:
+        """
+        Submit an order to the Smart Order Executor.
+        
+        This is the bridge method that routes strategy signals to the AsyncIO executor.
+        It must be thread-safe as it's called from the sync strategy thread.
+        """
+        if not self._executor:
+            logger.warning("Smart Order Executor not initialized. Cannot submit order.")
+            return None
+
+        if self._loop and self._loop.is_running():
+            # Schedule the coroutine in the background loop
+            future = asyncio.run_coroutine_threadsafe(
+                self._executor.submit_order(order, exchange), 
+                self._loop
+            )
+            try:
+                # Wait for the order ID to be returned (with timeout)
+                return future.result(timeout=5.0)
+            except Exception as e:
+                logger.error(f"Failed to submit smart order: {e}")
+                return None
+        else:
+            logger.error("AsyncIO loop is not running.")
+            return None

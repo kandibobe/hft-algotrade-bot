@@ -1,3 +1,4 @@
+
 """
 Unified Configuration System with Pydantic Validation
 =====================================================
@@ -109,9 +110,9 @@ class ExchangeConfig(BaseModel):
     def decrypt_secrets(self) -> "ExchangeConfig":
         """Automatically decrypt secrets if they are encrypted."""
         if self.api_key:
-            self.api_key = SecretManager.decrypt(self.api_key)
+            self.api_key = SecretManager.get_secret(self.api_key)
         if self.api_secret:
-            self.api_secret = SecretManager.decrypt(self.api_secret)
+            self.api_secret = SecretManager.get_secret(self.api_secret)
         return self
 
     timeout_ms: int = Field(
@@ -394,6 +395,7 @@ class TradingConfig(BaseSettings):
 
     # Sub-configs
     exchange: ExchangeConfig = Field(default_factory=ExchangeConfig)
+    additional_exchanges: list[ExchangeConfig] = Field(default_factory=list, description="Secondary exchanges for arbitrage")
     risk: RiskConfig = Field(default_factory=RiskConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
     feature_store: FeatureStoreConfig = Field(default_factory=FeatureStoreConfig)

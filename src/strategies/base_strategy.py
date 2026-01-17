@@ -100,8 +100,40 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
     def confirm_trade_entry(self, pair: str, order_type: str, amount: float, rate: float, 
                            time_in_force: str, current_time: datetime, entry_tag: Optional[str], 
                            side: str, **kwargs) -> bool:
+        # 1. Hybrid Safety Check
         if not self.check_market_safety(pair, side):
             return False
+
+        # 2. MFT Execution Diversion (Live/Dry Run Only)
+        if self.config.get('runmode') in ('live', 'dry_run'):
+            # Double check if we have a connection
+            if self._executor:
+                try:
+                    from src.order_manager.smart_order import ChaseLimitOrder
+                    
+                    # Construct Smart Order
+                    smart_order = ChaseLimitOrder(
+                        symbol=pair,
+                        side=side,
+                        quantity=amount,
+                        price=rate,
+                        attribution_metadata={"strategy": self.get_strategy_name(), "tag": entry_tag}
+                    )
+                    
+                    # Submit to Async Executor
+                    order_id = self.submit_smart_order(smart_order)
+                    
+                    if order_id:
+                        logger.info(f"⚡ MFT Order Submitted: {order_id} for {pair} {side}")
+                        # Return False to prevent Freqtrade from placing a duplicate dumb order
+                        return False
+                    else:
+                        logger.error("Failed to submit MFT order. Execution blocked.")
+                        return False
+                except Exception as e:
+                    logger.critical(f"Error in MFT execution diversion: {e}", exc_info=True)
+                    return False
+
         return super().confirm_trade_entry(pair, order_type, amount, rate, time_in_force, 
                                          current_time, entry_tag, side, **kwargs)
 
